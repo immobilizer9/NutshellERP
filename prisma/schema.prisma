@@ -1,0 +1,213 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Organization {
+  id        String   @id @default(uuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  users     User[]
+}
+
+model User {
+  id             String   @id @default(uuid())
+  name           String
+  email          String   @unique
+  password       String
+  isActive       Boolean  @default(true)
+  organizationId String
+  managerId      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  roles        UserRole[]
+
+  // Hierarchy
+  manager User?  @relation("UserHierarchy", fields: [managerId], references: [id])
+  team    User[] @relation("UserHierarchy")
+
+  // Commercial
+  ordersCreated Order[] @relation("OrderCreator")
+
+  // Field
+  visits       Visit[]
+  dailyReports DailyReport[]
+
+  // Tasks
+  assignedTasks Task[] @relation("UserAssignedTasks")
+  createdTasks  Task[] @relation("UserCreatedTasks")
+}
+
+model Role {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users       UserRole[]
+  permissions RolePermission[]
+}
+
+model Permission {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+
+  roles RolePermission[]
+}
+
+model UserRole {
+  id     String @id @default(uuid())
+  userId String
+  roleId String
+
+  user User @relation(fields: [userId], references: [id])
+  role Role @relation(fields: [roleId], references: [id])
+
+  @@unique([userId, roleId])
+}
+
+model RolePermission {
+  id           String @id @default(uuid())
+  roleId       String
+  permissionId String
+
+  role       Role       @relation(fields: [roleId], references: [id])
+  permission Permission @relation(fields: [permissionId], references: [id])
+
+  @@unique([roleId, permissionId])
+}
+
+model AuditLog {
+  id             String   @id @default(uuid())
+  action         String
+  userId         String?
+  organizationId String
+  metadata       Json?
+  createdAt      DateTime @default(now())
+}
+
+model School {
+  id            String   @id @default(uuid())
+  name          String
+  address       String
+  city          String
+  state         String
+  latitude      Float
+  longitude     Float
+  contactPerson String?
+  contactPhone  String?
+
+  pipelineStage String   @default("LEAD")
+
+  visits Visit[]
+  orders Order[]
+
+  createdAt DateTime @default(now())
+}
+
+model Visit {
+  id          String   @id @default(uuid())
+
+  schoolId    String
+  school      School   @relation(fields: [schoolId], references: [id])
+
+  salesUserId String
+  salesUser   User     @relation(fields: [salesUserId], references: [id])
+
+  notes       String?
+  createdAt   DateTime @default(now())
+}
+
+model Order {
+  id            String   @id @default(uuid())
+
+  schoolId      String
+  school        School   @relation(fields: [schoolId], references: [id])
+
+  createdById   String
+  createdBy     User     @relation("OrderCreator", fields: [createdById], references: [id])
+
+  status        String   @default("FINALIZED")
+  editLocked    Boolean  @default(true)
+
+  grossAmount   Float
+  netAmount     Float
+
+  items   OrderItem[]
+  returns Return[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model OrderItem {
+  id        String  @id @default(uuid())
+
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id])
+
+  className String
+  quantity  Int
+  unitPrice Float
+  total     Float
+
+  returns Return[]
+}
+
+model Return {
+  id        String   @id @default(uuid())
+
+  orderId   String
+  order     Order    @relation(fields: [orderId], references: [id])
+
+  itemId    String
+  item      OrderItem @relation(fields: [itemId], references: [id])
+
+  quantity  Int
+  amount    Float
+  reason    String?
+
+  createdAt DateTime @default(now())
+}
+
+model DailyReport {
+  id        String   @id @default(uuid())
+  summary   String
+  location  String?
+  latitude  Float?
+  longitude Float?
+
+  status    String   @default("PENDING")
+  bdComment String?
+
+  salesUserId String
+  salesUser   User   @relation(fields: [salesUserId], references: [id])
+
+  createdAt DateTime @default(now())
+}
+
+model Task {
+  id          String   @id @default(uuid())
+  title       String
+  description String?
+  dueDate     DateTime
+  status      String   @default("PENDING")
+
+  assignedToId String
+  assignedById String
+
+  assignedTo User @relation("UserAssignedTasks", fields: [assignedToId], references: [id])
+  assignedBy User @relation("UserCreatedTasks", fields: [assignedById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

@@ -1,0 +1,7 @@
+{
+  "modules": [
+    "role-based-order-visibility",
+    "order-edit-lock-logic",
+    "revenue-analytics-refinement"
+  ]
+}
