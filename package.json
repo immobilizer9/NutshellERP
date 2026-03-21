@@ -7,24 +7,32 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-  "check": "tsc --noEmit && prisma generate",
-  "reset": "prisma db push --force-reset && prisma generate && node prisma/seed.js",
-  "verify": "npm run check && npm run build",
+    "check": "tsc --noEmit && prisma generate",
+    "reset": "prisma db push --force-reset && prisma generate && node prisma/seed.js",
+    "verify": "npm run check && npm run build",
     "next-feature": "node automation/nextFeature.js",
     "create-feature": "node automation/createFeature.js",
-"health": "node automation/systemHealth.js",
-"safe": "node automation/gitSafe.js",
-"schema-check": "node automation/schemaIntelligence.js",
-"evolve": "node automation/evolve.js"
+    "health": "node automation/systemHealth.js",
+    "safe": "node automation/gitSafe.js",
+    "schema-check": "node automation/schemaIntelligence.js",
+    "evolve": "node automation/evolve.js"
   },
   "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "@mui/icons-material": "^7.3.8",
+    "@mui/material": "^7.3.8",
     "@prisma/client": "^6.10.1",
+    "@react-pdf/renderer": "^4.3.2",
     "bcrypt": "^6.0.0",
+    "googleapis": "^171.4.0",
     "jsonwebtoken": "^9.0.3",
     "next": "16.1.6",
+    "nodemailer": "^8.0.2",
     "prisma": "^6.10.1",
     "react": "19.2.3",
     "react-dom": "19.2.3",
+    "sharp": "^0.34.5",
     "sonner": "^2.0.7"
   },
   "devDependencies": {
@@ -32,6 +40,7 @@
     "@types/bcrypt": "^6.0.0",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^20",
+    "@types/nodemailer": "^7.0.11",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
@@ -40,6 +49,4 @@
     "ts-node": "^10.9.2",
     "typescript": "^5"
   }
-
-  
 }

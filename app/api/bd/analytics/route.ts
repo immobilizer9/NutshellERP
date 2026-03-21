@@ -1,165 +1,153 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-
-function parseJwt(token: string) {
-  try {
-    return JSON.parse(atob(token.split(".")[1]));
-  } catch {
-    return null;
-  }
-}
+import { verifyToken, getTokenFromRequest } from "@/lib/auth";
 
 export async function GET(req: Request) {
-  const token = req.headers.get("cookie")?.match(/token=([^;]+)/)?.[1];
+  try {
+    const token = getTokenFromRequest(req);
+    if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  if (!token)
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const decoded = verifyToken(token);
+    if (!decoded || !decoded.roles.includes("BD_HEAD")) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
 
-  const decoded = parseJwt(token);
-
-  if (!decoded || !decoded.roles.includes("BD_HEAD"))
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-
-  // 🔹 Fetch Team
-  const team = await prisma.user.findMany({
-    where: { managerId: decoded.userId },
-  });
-
-  const teamIds = team.map((u) => u.id);
-
-  // 🔹 ORDERS
-  const orders = await prisma.order.findMany({
-    where: {
-      createdById: { in: teamIds },
-      status: "FINALIZED",
-    },
-  });
-
-  const totalOrders = orders.length;
-  const totalRevenue = orders
-    .filter(o => o.status === "APPROVED")
-    .reduce((sum, o) => sum + o.netAmount, 0);
-
-  const pendingOrders = orders.filter(o => o.status === "PENDING");
-
-  // 🔹 TASKS
-  const tasks = await prisma.task.findMany({
-    where: {
-      assignedToId: { in: teamIds },
-    },
-    include: {
-      assignedTo: true,
-    },
-  });
-
-  const now = new Date();
-
-  const totalTasks = tasks.length;
-  const completedTasks = tasks.filter(t => t.status === "COMPLETED").length;
-  const pendingTasks = tasks.filter(t => t.status === "PENDING").length;
-  const overdueTasks = tasks.filter(
-    t => t.status !== "COMPLETED" && new Date(t.dueDate) < now
-  ).length;
-
-  const completionRate =
-    totalTasks === 0 ? 0 : Math.round((completedTasks / totalTasks) * 100);
-
-  // 🔹 DAILY REPORTS
-  const reports = await prisma.dailyReport.findMany({
-    where: {
-      salesUserId: { in: teamIds },
-    },
-    orderBy: {
-      createdAt: "desc",
-    },
-    include: {
-      salesUser: true,
-    },
-  });
-  
-// Inactive Sales
-const salesActivityStatus = team.map((user) => {
-  const latestReport = reports.find(
-    (r) => r.salesUserId === user.id
-  );
-
-  const lastActivity = latestReport?.createdAt || null;
-
-  const isInactive =
-    !lastActivity ||
-    new Date().getTime() - new Date(lastActivity).getTime() >
-      24 * 60 * 60 * 1000;
-
-  return {
-    userId: user.id,
-    name: user.name,
-    lastActivity,
-    isInactive,
-  };
-});
-type TimelineItem = {
-  type: "REPORT" | "ORDER" | "TASK";
-  user: string | undefined;
-  description: string;
-  time: Date;
-};
-
-const timeline: TimelineItem[] = [];
-
-// Reports
-reports.forEach((report) => {
-  timeline.push({
-    type: "REPORT",
-    user: report.salesUser.name,
-    description: "Submitted daily report",
-    time: report.createdAt,
-  });
-});
-
-// Orders
-orders.forEach((order) => {
-  timeline.push({
-    type: "ORDER",
-    user: team.find(u => u.id === order.createdById)?.name,
-    description: `Created order of ₹${order.netAmount}`,
-    time: order.createdAt,
-  });
-});
-
-// Task completions
-tasks
-  .filter(t => t.status === "COMPLETED")
-  .forEach((task) => {
-    timeline.push({
-      type: "TASK",
-      user: task.assignedTo.name,
-      description: `Completed task: ${task.title}`,
-      time: task.updatedAt,
+    // ── Team ──────────────────────────────────────────────────────
+    const team = await prisma.user.findMany({
+      where:  { managerId: decoded.userId },
+      select: { id: true, name: true },
     });
-  });
+    const teamIds = team.map((u) => u.id);
 
-// Sort newest first
-timeline.sort(
-  (a, b) => new Date(b.time).getTime() - new Date(a.time).getTime()
-);
+    // ── Orders ────────────────────────────────────────────────────
+    const orders = await prisma.order.findMany({
+      where:   { createdById: { in: teamIds } },
+      include: {
+        school:    { select: { id: true, name: true } },
+        createdBy: { select: { id: true, name: true } },
+      },
+      orderBy: { createdAt: "asc" },
+    });
 
-  return NextResponse.json({
-    // Orders
-    totalOrders,
-    totalRevenue,
-    pendingOrders,
+    const approvedOrders = orders.filter((o) => o.status === "APPROVED");
+    const totalOrders    = orders.length;
+    const totalRevenue   = approvedOrders.reduce((s, o) => s + o.netAmount, 0);
+    const totalGross     = approvedOrders.reduce((s, o) => s + o.grossAmount, 0);
+    const pendingCount   = orders.filter((o) => o.status === "PENDING").length;
+    const rejectedCount  = orders.filter((o) => o.status === "REJECTED").length;
 
-    // Tasks
-    totalTasks,
-    completedTasks,
-    pendingTasks,
-    overdueTasks,
-    completionRate,
-    tasks,
+    // ── Monthly revenue (last 12 months) ─────────────────────────
+    const monthMap: Record<string, { label: string; revenue: number; orders: number }> = {};
+    for (let i = 0; i < 12; i++) {
+      const d = new Date();
+      d.setMonth(d.getMonth() - (11 - i));
+      const key   = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const label = d.toLocaleDateString("en-IN", { month: "short", year: "2-digit" });
+      monthMap[key] = { label, revenue: 0, orders: 0 };
+    }
+    approvedOrders.forEach((o) => {
+      const d   = new Date(o.createdAt);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      if (monthMap[key]) { monthMap[key].revenue += o.netAmount; monthMap[key].orders += 1; }
+    });
+    const monthlyRevenue = Object.values(monthMap);
 
-    // Reports
-    reports,
-    salesActivityStatus,
-    timeline,
-  });
+    // ── Product breakdown ─────────────────────────────────────────
+    const productBreakdown: Record<string, { orders: number; revenue: number }> = {};
+    approvedOrders.forEach((o) => {
+      const pt = o.productType ?? "ANNUAL";
+      if (!productBreakdown[pt]) productBreakdown[pt] = { orders: 0, revenue: 0 };
+      productBreakdown[pt].orders  += 1;
+      productBreakdown[pt].revenue += o.netAmount;
+    });
+
+    // ── Team leaderboard ──────────────────────────────────────────
+    const grouped: Record<string, { name: string; orders: number; revenue: number }> = {};
+    approvedOrders.forEach((o) => {
+      const id = o.createdById;
+      if (!grouped[id]) grouped[id] = { name: o.createdBy.name, orders: 0, revenue: 0 };
+      grouped[id].orders  += 1;
+      grouped[id].revenue += o.netAmount;
+    });
+    const leaderboard = Object.values(grouped).sort((a, b) => b.revenue - a.revenue);
+
+    // ── Top schools ───────────────────────────────────────────────
+    const schoolRevenue: Record<string, { name: string; revenue: number; orders: number }> = {};
+    approvedOrders.forEach((o) => {
+      const id = o.schoolId;
+      if (!schoolRevenue[id]) schoolRevenue[id] = { name: o.school.name, revenue: 0, orders: 0 };
+      schoolRevenue[id].revenue += o.netAmount;
+      schoolRevenue[id].orders  += 1;
+    });
+    const topSchools = Object.values(schoolRevenue)
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, 8);
+
+    // ── Pipeline breakdown ────────────────────────────────────────
+    const schools = await prisma.school.findMany({
+      where:  { assignedToId: { in: teamIds } },
+      select: { pipelineStage: true },
+    });
+    const stageCounts: Record<string, number> = {};
+    schools.forEach((s) => { stageCounts[s.pipelineStage] = (stageCounts[s.pipelineStage] ?? 0) + 1; });
+    const pipelineBreakdown = Object.entries(stageCounts).map(([stage, count]) => ({ stage, count }));
+
+    // ── Tasks ─────────────────────────────────────────────────────
+    const tasks = await prisma.task.findMany({
+      where:   { assignedToId: { in: teamIds } },
+      include: { assignedTo: { select: { id: true, name: true } } },
+      orderBy: { dueDate: "asc" },
+    });
+    const now = new Date();
+    const totalTasks     = tasks.length;
+    const completedTasks = tasks.filter((t) => t.status === "COMPLETED").length;
+    const pendingTasks   = tasks.filter((t) => t.status === "PENDING").length;
+    const overdueTasks   = tasks.filter((t) => t.status !== "COMPLETED" && new Date(t.dueDate) < now).length;
+    const completionRate = totalTasks === 0 ? 0 : Math.round((completedTasks / totalTasks) * 100);
+
+    // ── Sales activity status ─────────────────────────────────────
+    const reports = await prisma.dailyReport.findMany({
+      where:   { salesUserId: { in: teamIds } },
+      orderBy: { createdAt: "desc" },
+      include: { salesUser: { select: { id: true, name: true } } },
+    });
+    const salesActivityStatus = team.map((user) => {
+      const latest     = reports.find((r) => r.salesUserId === user.id);
+      const lastActivity = latest?.createdAt ?? null;
+      const isInactive   = !lastActivity || Date.now() - new Date(lastActivity).getTime() > 24 * 60 * 60 * 1000;
+      return { userId: user.id, name: user.name, lastActivity, isInactive };
+    });
+
+    return NextResponse.json({
+      // Orders — same shape as admin + sales analytics
+      totalOrders,
+      approvedOrders: approvedOrders.length,
+      pendingOrders:  pendingCount,
+      rejectedOrders: rejectedCount,
+      totalRevenue,
+      totalGross,
+      totalReturns: totalGross - totalRevenue,
+      monthlyRevenue,
+      productBreakdown,
+      topSchools,
+      leaderboard,
+
+      // Pipeline
+      pipelineBreakdown,
+      totalSchools: schools.length,
+
+      // Tasks
+      totalTasks,
+      completedTasks,
+      pendingTasks,
+      overdueTasks,
+      completionRate,
+
+      // Team activity
+      salesActivityStatus,
+    });
+  } catch (error) {
+    console.error("BD analytics error:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
 }

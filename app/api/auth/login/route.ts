@@ -1,9 +1,7 @@
 import { NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-
-const prisma = new PrismaClient();
 
 export async function POST(req: Request) {
   try {
@@ -20,47 +18,46 @@ export async function POST(req: Request) {
       where: { email },
       include: {
         roles: {
-          include: {
-            role: true,
-          },
+          include: { role: true },
         },
       },
     });
 
     if (!user) {
-      return NextResponse.json(
-        { error: "Invalid credentials" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
+    }
+
+    if (!user.isActive) {
+      return NextResponse.json({ error: "Account is inactive" }, { status: 403 });
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.password);
 
     if (!isPasswordValid) {
-      return NextResponse.json(
-        { error: "Invalid credentials" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
     }
 
+    const roles = user.roles.map((r) => r.role.name);
+
+    // ✅ Secret comes from environment — never hardcoded
     const token = jwt.sign(
       {
         userId: user.id,
         organizationId: user.organizationId,
-        roles: user.roles.map((r) => r.role.name),
+        roles,
       },
-      "SUPER_SECRET_KEY",
+      process.env.JWT_SECRET!,
       { expiresIn: "1d" }
     );
 
     const response = NextResponse.json({
-  message: "Login successful",
-  roles: user.roles.map((r) => r.role.name),
-});
+      message: "Login successful",
+      roles,
+    });
 
     response.cookies.set("token", token, {
       httpOnly: true,
-      secure: false,
+      secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/",
     });

@@ -20,6 +20,7 @@ model User {
   name           String
   email          String   @unique
   password       String
+  phone          String?  // ✅ Sales rep phone number
   isActive       Boolean  @default(true)
   organizationId String
   managerId      String?
@@ -27,23 +28,16 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  organization Organization @relation(fields: [organizationId], references: [id])
-  roles        UserRole[]
-
-  // Hierarchy
-  manager User?  @relation("UserHierarchy", fields: [managerId], references: [id])
-  team    User[] @relation("UserHierarchy")
-
-  // Commercial
-  ordersCreated Order[] @relation("OrderCreator")
-
-  // Field
-  visits       Visit[]
-  dailyReports DailyReport[]
-
-  // Tasks
-  assignedTasks Task[] @relation("UserAssignedTasks")
-  createdTasks  Task[] @relation("UserCreatedTasks")
+  organization    Organization  @relation(fields: [organizationId], references: [id])
+  roles           UserRole[]
+  manager         User?         @relation("UserHierarchy", fields: [managerId], references: [id])
+  team            User[]        @relation("UserHierarchy")
+  ordersCreated   Order[]       @relation("OrderCreator")
+  visits          Visit[]
+  dailyReports    DailyReport[]
+  assignedTasks   Task[]        @relation("UserAssignedTasks")
+  createdTasks    Task[]        @relation("UserCreatedTasks")
+  assignedSchools School[]      @relation("SchoolAssignment")
 }
 
 model Role {
@@ -89,24 +83,30 @@ model RolePermission {
 model AuditLog {
   id             String   @id @default(uuid())
   action         String
+  entity         String?  // e.g. "Order", "School", "User"
+  entityId       String?  // ID of the affected record
   userId         String?
+  userName       String?  // denormalized for display without join
   organizationId String
   metadata       Json?
   createdAt      DateTime @default(now())
 }
 
 model School {
-  id            String   @id @default(uuid())
+  id            String  @id @default(uuid())
   name          String
   address       String
   city          String
   state         String
-  latitude      Float
-  longitude     Float
+  latitude      Float   @default(0)
+  longitude     Float   @default(0)
   contactPerson String?
   contactPhone  String?
 
-  pipelineStage String   @default("LEAD")
+  assignedToId String?
+  assignedTo   User?   @relation("SchoolAssignment", fields: [assignedToId], references: [id])
+
+  pipelineStage PipelineStage @default(LEAD)
 
   visits Visit[]
   orders Order[]
@@ -114,79 +114,106 @@ model School {
   createdAt DateTime @default(now())
 }
 
-model Visit {
-  id          String   @id @default(uuid())
+model Order {
+  id String @id @default(uuid())
 
   schoolId    String
-  school      School   @relation(fields: [schoolId], references: [id])
+  school      School @relation(fields: [schoolId], references: [id])
 
-  salesUserId String
-  salesUser   User     @relation(fields: [salesUserId], references: [id])
+  createdById String
+  createdBy   User   @relation("OrderCreator", fields: [createdById], references: [id])
 
-  notes       String?
-  createdAt   DateTime @default(now())
-}
+  type        String @default("ORIGINAL")
+  // Values: ORIGINAL | ADDITIONAL
 
-model Order {
-  id            String   @id @default(uuid())
+  productType String @default("ANNUAL")
+  // Values: ANNUAL | PAPERBACKS_PLAINS | PAPERBACKS_HILLS
 
-  schoolId      String
-  school        School   @relation(fields: [schoolId], references: [id])
+  status String @default("PENDING")
+  // Values: PENDING | APPROVED | REJECTED
 
-  createdById   String
-  createdBy     User     @relation("OrderCreator", fields: [createdById], references: [id])
+  grossAmount Float
+  netAmount   Float
 
-  status        String   @default("FINALIZED")
-  editLocked    Boolean  @default(true)
+  // School contact details at time of order
+  schoolEmail  String?
+  schoolPhone  String?
+  address1     String?
+  address2     String?
+  pincode      String?
+  orderDate    DateTime?
+  deliveryDate DateTime?
 
-  grossAmount   Float
-  netAmount     Float
+  // ✅ Vendor details
+  vendorName    String?
+  vendorPhone   String?
+  vendorEmail   String?
+  vendorAddress String?
 
-  items   OrderItem[]
-  returns Return[]
+  // Generated PDF download URL
+  pdfUrl String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  items   OrderItem[]
+  returns Return[]
+  pocs    OrderPOC[]
 }
 
 model OrderItem {
-  id        String  @id @default(uuid())
+  id String @id @default(uuid())
 
-  orderId   String
-  order     Order   @relation(fields: [orderId], references: [id])
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id])
 
   className String
   quantity  Int
+  mrp       Float
   unitPrice Float
   total     Float
 
   returns Return[]
 }
 
+model OrderPOC {
+  id String @id @default(uuid())
+
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id])
+
+  role  String
+  name  String?
+  phone String?
+  email String?
+
+  createdAt DateTime @default(now())
+}
+
 model Return {
-  id        String   @id @default(uuid())
+  id String @id @default(uuid())
 
-  orderId   String
-  order     Order    @relation(fields: [orderId], references: [id])
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id])
 
-  itemId    String
-  item      OrderItem @relation(fields: [itemId], references: [id])
+  itemId String
+  item   OrderItem @relation(fields: [itemId], references: [id])
 
-  quantity  Int
-  amount    Float
-  reason    String?
+  quantity Int
+  amount   Float
+  reason   String?
 
   createdAt DateTime @default(now())
 }
 
 model DailyReport {
-  id        String   @id @default(uuid())
+  id        String  @id @default(uuid())
   summary   String
   location  String?
   latitude  Float?
   longitude Float?
 
-  status    String   @default("PENDING")
+  status    String  @default("PENDING")
   bdComment String?
 
   salesUserId String
@@ -210,4 +237,27 @@ model Task {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model Visit {
+  id String @id @default(uuid())
+
+  schoolId    String
+  school      School @relation(fields: [schoolId], references: [id])
+
+  salesUserId String
+  salesUser   User   @relation(fields: [salesUserId], references: [id])
+
+  notes     String?
+  createdAt DateTime @default(now())
+}
+
+enum PipelineStage {
+  LEAD
+  CONTACTED
+  VISITED
+  PROPOSAL_SENT
+  NEGOTIATION
+  CLOSED_WON
+  CLOSED_LOST
 }

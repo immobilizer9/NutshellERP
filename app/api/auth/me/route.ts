@@ -1,21 +1,15 @@
 import { NextResponse } from "next/server";
-
-function parseJwt(token: string) {
-  try {
-    return JSON.parse(atob(token.split(".")[1]));
-  } catch {
-    return null;
-  }
-}
+import { verifyToken, getTokenFromRequest } from "@/lib/auth";
 
 export async function GET(req: Request) {
-  const token = req.headers.get("cookie")?.match(/token=([^;]+)/)?.[1];
+  const token = getTokenFromRequest(req);
 
   if (!token) {
     return NextResponse.json({ user: null }, { status: 200 });
   }
 
-  const decoded = parseJwt(token);
+  // ✅ Verifies signature — forged tokens are rejected
+  const decoded = verifyToken(token);
 
   if (!decoded) {
     return NextResponse.json({ user: null }, { status: 200 });

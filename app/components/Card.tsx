@@ -6,9 +6,7 @@ export default function Card({
   className?: string;
 }) {
   return (
-    <div
-      className={`bg-white rounded-2xl shadow-sm border p-6 transition hover:shadow-md ${className}`}
-    >
+    <div className={`card fade-in ${className}`}>
       {children}
     </div>
   );

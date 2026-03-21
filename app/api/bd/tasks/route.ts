@@ -1,54 +1,109 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-
-function parseJwt(token: string) {
-  try {
-    const base64Payload = token.split(".")[1];
-    const payload = atob(base64Payload);
-    return JSON.parse(payload);
-  } catch {
-    return null;
-  }
-}
+import { verifyToken, getTokenFromRequest } from "@/lib/auth";
+import { sendTaskEmail } from "@/lib/sendTaskEmail";
 
 export async function POST(req: Request) {
   try {
-    const token = req.headers.get("cookie")?.match(/token=([^;]+)/)?.[1];
+    const token = getTokenFromRequest(req);
     if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const decoded = parseJwt(token);
-    if (!decoded || !decoded.roles.includes("BD_HEAD"))
+    const decoded = verifyToken(token);
+    if (!decoded || !decoded.roles.includes("BD_HEAD")) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
 
     const { title, description, dueDate, assignedToId } = await req.json();
-if (!assignedToId) {
-  return NextResponse.json(
-    { error: "Please select a sales user" },
-    { status: 400 }
-  );
-}
-    // Verify assigned user belongs to BD
+
+    if (!title || !dueDate || !assignedToId) {
+      return NextResponse.json(
+        { error: "title, dueDate, and assignedToId are required" },
+        { status: 400 }
+      );
+    }
+
+    // Verify assigned user is a direct report of this BD Head
     const salesUser = await prisma.user.findUnique({
-      where: { id: assignedToId },
+      where:  { id: assignedToId },
+      select: { managerId: true, name: true, email: true },
     });
 
-    if (salesUser?.managerId !== decoded.userId) {
-      return NextResponse.json({ error: "Not allowed" }, { status: 403 });
+    if (!salesUser) {
+      return NextResponse.json({ error: "Assigned user not found" }, { status: 404 });
     }
+
+    if (salesUser.managerId !== decoded.userId) {
+      return NextResponse.json(
+        { error: "You can only assign tasks to your own team members" },
+        { status: 403 }
+      );
+    }
+
+    // Get BD Head's name for the email
+    const bdUser = await prisma.user.findUnique({
+      where:  { id: decoded.userId },
+      select: { name: true },
+    });
 
     const task = await prisma.task.create({
       data: {
         title,
-        description,
-        dueDate: new Date(dueDate),
+        description: description ?? null,
+        dueDate:     new Date(dueDate),
         assignedToId,
         assignedById: decoded.userId,
       },
+      include: {
+        assignedTo: { select: { id: true, name: true } },
+      },
     });
+
+    // ✅ Send email notification to the sales rep (non-blocking)
+    if (salesUser.email) {
+      sendTaskEmail({
+        to:              salesUser.email,
+        salesRepName:    salesUser.name,
+        assignedByName:  bdUser?.name ?? "Your Manager",
+        taskTitle:       title,
+        taskDescription: description ?? undefined,
+        dueDate:         new Date(dueDate).toLocaleDateString("en-IN", {
+          day: "2-digit", month: "short", year: "numeric",
+        }),
+        dashboardUrl: process.env.APP_URL ? `${process.env.APP_URL}/sales` : undefined,
+      }).catch((err) => console.error("Task email failed:", err));
+    }
 
     return NextResponse.json(task);
   } catch (error) {
-    console.error("Task creation error:", error);
-    return NextResponse.json({ error: "Internal error" }, { status: 500 });
+    console.error("Task create error:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+}
+
+export async function GET(req: Request) {
+  try {
+    const token = getTokenFromRequest(req);
+    if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const decoded = verifyToken(token);
+    if (!decoded || !decoded.roles.includes("BD_HEAD")) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    const team = await prisma.user.findMany({
+      where:  { managerId: decoded.userId },
+      select: { id: true },
+    });
+
+    const tasks = await prisma.task.findMany({
+      where:   { assignedToId: { in: team.map((u) => u.id) } },
+      include: { assignedTo: { select: { id: true, name: true } } },
+      orderBy: { dueDate: "asc" },
+    });
+
+    return NextResponse.json(tasks);
+  } catch (error) {
+    console.error("Tasks fetch error:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

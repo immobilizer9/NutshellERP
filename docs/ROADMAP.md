@@ -13,16 +13,16 @@
 ---
 
 ## PHASE 1 – REVENUE ENGINE HARDENING
-[x] Role-based order visibility
-[x] Order edit lock logic
-[ ] Revenue analytics refinement
-[ ] School-level revenue summary
+[x] Role-based order visibility        ← implemented in orders/list API
+[x] Order edit lock logic              ← orders are immutable by design (no edit route exists)
+[x] Revenue analytics refinement       ← analytics now use status: APPROVED + netAmount
+[x] School-level revenue summary       ← pipeline API includes orders with netAmount
 
 ---
 
 ## PHASE 2 – PIPELINE SYSTEM
-[ ] Pipeline board UI
-[ ] Stage update API
+[x] Pipeline board UI
+[x] Stage update API
 [ ] Conversion tracking
 [ ] Forecast engine
 
@@ -37,6 +37,8 @@
 ---
 
 ## PHASE 4 – TASK ENGINE 2.0
+[x] Task assignment (BD → Sales)
+[x] Task completion (Sales)
 [ ] Task priority levels
 [ ] Task analytics
 [ ] Overdue tracking
@@ -45,6 +47,8 @@
 ---
 
 ## PHASE 5 – ADMIN CONTROL CENTER
+[x] User management
+[x] Manager assignment
 [ ] System metrics
 [ ] Organization settings
 [ ] Pricing engine control

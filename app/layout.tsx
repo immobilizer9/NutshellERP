@@ -1,17 +1,15 @@
+import type { Metadata } from "next";
 import "./globals.css";
-import { ReactNode } from "react";
-import {Toaster} from "sonner";
-export default function RootLayout({
-  children,
-}: {
-  children: ReactNode;
-}) {
+
+export const metadata: Metadata = {
+  title: "Nutshell ERP",
+  description: "School book distribution management",
+};
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className="bg-gray-100 text-gray-900">
-        {children}
-        <Toaster position="top-right" richColors />
-      </body>
+      <body>{children}</body>
     </html>
   );
 }

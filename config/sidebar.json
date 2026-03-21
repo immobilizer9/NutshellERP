@@ -1,7 +1,12 @@
 {
   "modules": [
-    "role-based-order-visibility",
-    "order-edit-lock-logic",
-    "revenue-analytics-refinement"
+    "dashboard",
+    "pipeline",
+    "orders",
+    "schools",
+    "visits",
+    "tasks",
+    "reports",
+    "analytics"
   ]
 }

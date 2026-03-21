@@ -1,21 +1,17 @@
-import Link from "next/link";
-import sidebar from "@/config/sidebar.json";
+"use client";
 
-export default function Sidebar() {
-  return (
-    <div className="flex flex-col space-y-2">
-      {sidebar.modules.map((module: string) => (
-        <Link
-          key={module}
-          href={`/${module}`}
-          className="p-2 rounded hover:bg-gray-200"
-        >
-          {module
-            .split("-")
-            .map((w) => w[0].toUpperCase() + w.slice(1))
-            .join(" ")}
-        </Link>
-      ))}
+import dynamic from "next/dynamic";
+
+const LayoutClient = dynamic(() => import("./LayoutClient"), {
+  ssr: false,
+  loading: () => (
+    <div style={{ display: "flex", minHeight: "100vh", background: "var(--bg)" }}>
+      <div style={{ width: 220, flexShrink: 0, background: "var(--sidebar-bg)" }} />
+      <main style={{ flex: 1, minWidth: 0 }} />
     </div>
-  );
+  ),
+});
+
+export default function ProtectedLayout({ children }: { children: React.ReactNode }) {
+  return <LayoutClient>{children}</LayoutClient>;
 }
