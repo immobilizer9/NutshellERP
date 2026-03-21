@@ -84,16 +84,6 @@ export async function GET(req: Request) {
       productBreakdown[pt].revenue += o.netAmount;
     });
 
-    // ── Sales leaderboard ───────────────────────────────────────────
-    const grouped: Record<string, { name: string; orders: number; revenue: number }> = {};
-    orders.forEach((o) => {
-      const id = o.createdById;
-      if (!grouped[id]) grouped[id] = { name: o.createdBy.name, orders: 0, revenue: 0 };
-      grouped[id].orders  += 1;
-      grouped[id].revenue += o.netAmount;
-    });
-    const leaderboard = Object.values(grouped).sort((a, b) => b.revenue - a.revenue);
-
     // ── Top schools by revenue ──────────────────────────────────────
     const schoolRevenue: Record<string, { name: string; revenue: number; orders: number }> = {};
     orders.forEach((o) => {
@@ -109,7 +99,6 @@ export async function GET(req: Request) {
     return NextResponse.json({
       totalOrders,
       totalRevenue,
-      leaderboard,
       latestReports: reports,
       monthlyRevenue,
       pipelineBreakdown,

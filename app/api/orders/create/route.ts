@@ -19,10 +19,11 @@ const PAPERBACK_MRP_HILLS: Record<number, number> = {
   1: 600, 2: 600, 3: 600, 4: 600,
   5: 600, 6: 600, 7: 600, 8: 600,
 };
-
 function getMRP(classNum: number, productType: string): number {
-  if (productType === "PAPERBACKS_HILLS")  return PAPERBACK_MRP_HILLS[classNum]  ?? 0;
-  if (productType === "PAPERBACKS_PLAINS") return PAPERBACK_MRP_PLAINS[classNum] ?? 0;
+  if (productType === "PAPERBACKS_HILLS"   ) return PAPERBACK_MRP_HILLS[classNum]   ?? 0;
+  if (productType === "PAPERBACKS_PLAINS"  ) return PAPERBACK_MRP_PLAINS[classNum]  ?? 0;
+  if (productType === "NUTSHELL_PAPERBACKS") return PAPERBACK_MRP_PLAINS[classNum]  ?? 0;
+  if (productType === "NUTSHELL_ANNUAL"    ) return ANNUAL_MRP[classNum]            ?? 0;
   return ANNUAL_MRP[classNum] ?? 0;
 }
 

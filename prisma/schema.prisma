@@ -37,7 +37,10 @@ model User {
   dailyReports    DailyReport[]
   assignedTasks   Task[]        @relation("UserAssignedTasks")
   createdTasks    Task[]        @relation("UserCreatedTasks")
-  assignedSchools School[]      @relation("SchoolAssignment")
+  assignedSchools   School[]          @relation("SchoolAssignment")
+  createdEvents     SchoolEvent[]     @relation("EventCreator")
+  targets           Target[]
+  competitorNotes   CompetitorNote[]  @relation("CompetitorNoteCreator")
 }
 
 model Role {
@@ -108,8 +111,10 @@ model School {
 
   pipelineStage PipelineStage @default(LEAD)
 
-  visits Visit[]
-  orders Order[]
+  visits          Visit[]
+  orders          Order[]
+  events          SchoolEvent[]
+  competitorNotes CompetitorNote[]
 
   createdAt DateTime @default(now())
 }
@@ -127,7 +132,7 @@ model Order {
   // Values: ORIGINAL | ADDITIONAL
 
   productType String @default("ANNUAL")
-  // Values: ANNUAL | PAPERBACKS_PLAINS | PAPERBACKS_HILLS
+  // Values: ANNUAL | PAPERBACKS_PLAINS | PAPERBACKS_HILLS | NUTSHELL_ANNUAL | NUTSHELL_PAPERBACKS
 
   status String @default("PENDING")
   // Values: PENDING | APPROVED | REJECTED
@@ -149,6 +154,16 @@ model Order {
   vendorPhone   String?
   vendorEmail   String?
   vendorAddress String?
+
+  // Payment tracking
+  paymentStatus String  @default("UNPAID")
+  // Values: UNPAID | PARTIAL | PAID
+  paidAmount    Float   @default(0)
+
+  // Delivery tracking
+  deliveryStatus String    @default("PENDING")
+  // Values: PENDING | DISPATCHED | DELIVERED
+  deliveredAt    DateTime?
 
   // Generated PDF download URL
   pdfUrl String?
@@ -239,6 +254,43 @@ model Task {
   updatedAt DateTime @updatedAt
 }
 
+model CompetitorNote {
+  id String @id @default(uuid())
+
+  schoolId    String
+  school      School @relation(fields: [schoolId], references: [id])
+
+  createdById String
+  createdBy   User   @relation("CompetitorNoteCreator", fields: [createdById], references: [id])
+
+  competitor  String
+  // Who the competitor is: e.g. "Oxford", "S.Chand", "NavNeet"
+  notes       String?
+  isActive    Boolean @default(true)
+  // Is this competitor currently active at this school?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Target {
+  id             String @id @default(uuid())
+  userId         String
+  user           User   @relation(fields: [userId], references: [id])
+  organizationId String
+
+  month          Int    // 1–12
+  year           Int
+
+  revenueTarget  Float  @default(0)
+  ordersTarget   Int    @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, month, year])
+}
+
 model Visit {
   id String @id @default(uuid())
 
@@ -248,8 +300,33 @@ model Visit {
   salesUserId String
   salesUser   User   @relation(fields: [salesUserId], references: [id])
 
-  notes     String?
+  outcome       String?
+  // Values: INTERESTED | FOLLOW_UP | NOT_INTERESTED | ORDER_PLACED
+  nextVisitDate DateTime?
+  notes         String?
+  createdAt     DateTime @default(now())
+}
+
+model SchoolEvent {
+  id   String    @id @default(uuid())
+  type EventType
+
+  date  DateTime
+  notes String?
+
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id])
+
+  createdById String
+  createdBy   User   @relation("EventCreator", fields: [createdById], references: [id])
+
   createdAt DateTime @default(now())
+}
+
+enum EventType {
+  QUIZ
+  TEACHER_TRAINING
+  MEETING
 }
 
 enum PipelineStage {

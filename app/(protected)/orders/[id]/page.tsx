@@ -5,9 +5,11 @@ import { useParams } from "next/navigation";
 import Badge from "@/app/components/Badge";
 
 const PRODUCT_TYPE_LABELS: Record<string, string> = {
-  ANNUAL:            "Annual",
-  PAPERBACKS_PLAINS: "Paperbacks — Plains",
-  PAPERBACKS_HILLS:  "Paperbacks — Hills",
+  ANNUAL:               "Annual",
+  PAPERBACKS_PLAINS:    "Paperbacks — Plains",
+  PAPERBACKS_HILLS:     "Paperbacks — Hills",
+  NUTSHELL_ANNUAL:      "Nutshell — Annual",
+  NUTSHELL_PAPERBACKS:  "Nutshell — Paperbacks",
 };
 
 export default function OrderDetailsPage() {
@@ -17,15 +19,59 @@ export default function OrderDetailsPage() {
   const [order, setOrder]     = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState("");
+  const [me, setMe]           = useState<any>(null);
 
-  useEffect(() => {
-    if (!id) return;
+  // Returns form state
+  const [returnForm, setReturnForm]           = useState<{ itemId: string; quantity: string; reason: string } | null>(null);
+  const [returnMsg, setReturnMsg]             = useState({ text: "", ok: false });
+  const [submittingReturn, setSubmittingReturn] = useState(false);
+
+  // Payment / delivery state
+  const [updatingStatus, setUpdatingStatus] = useState(false);
+
+  const fetchOrder = () =>
     fetch(`/api/orders/${id}`, { credentials: "include" })
       .then((r) => r.json())
       .then((data) => { if (data.error) setError(data.error); else setOrder(data); })
       .catch(() => setError("Failed to load order."))
       .finally(() => setLoading(false));
+
+  useEffect(() => {
+    if (id) fetchOrder();
+    fetch("/api/auth/me", { credentials: "include" }).then((r) => r.json()).then((d) => setMe(d?.user));
   }, [id]);
+
+  const updateOrderStatus = async (patch: Record<string, any>) => {
+    setUpdatingStatus(true);
+    await fetch("/api/orders/update-status", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      credentials: "include", body: JSON.stringify({ orderId: id, ...patch }),
+    });
+    await fetchOrder();
+    setUpdatingStatus(false);
+  };
+
+  const submitReturn = async () => {
+    if (!returnForm) return;
+    const qty = parseInt(returnForm.quantity);
+    if (!qty || qty <= 0) { setReturnMsg({ text: "Enter a valid quantity.", ok: false }); return; }
+    setSubmittingReturn(true);
+    setReturnMsg({ text: "", ok: false });
+    const res  = await fetch("/api/orders/return", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ orderId: id, itemId: returnForm.itemId, quantity: qty, reason: returnForm.reason || undefined }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      setReturnMsg({ text: `Return logged. New net: ₹${data.newNetAmount.toLocaleString()}`, ok: true });
+      setReturnForm(null);
+      fetchOrder();
+    } else {
+      setReturnMsg({ text: data.error || "Failed to log return.", ok: false });
+    }
+    setSubmittingReturn(false);
+  };
 
   if (loading) return <div style={{ color: "var(--text-muted)", padding: "40px 0" }}>Loading...</div>;
   if (error)   return <div className="alert alert-error">{error}</div>;
@@ -111,9 +157,18 @@ export default function OrderDetailsPage() {
           </div>
 
           {/* Returns */}
-          {order.returns?.length > 0 && (
-            <div className="card">
-              <h2 style={{ marginBottom: 14 }}>Returns</h2>
+          <div className="card">
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+              <h2 style={{ margin: 0 }}>Returns</h2>
+              {order.status === "APPROVED" && !returnForm && (
+                <button className="btn btn-secondary" style={{ fontSize: 12 }}
+                  onClick={() => { setReturnForm({ itemId: order.items?.[0]?.id ?? "", quantity: "", reason: "" }); setReturnMsg({ text: "", ok: false }); }}>
+                  + Log Return
+                </button>
+              )}
+            </div>
+
+            {order.returns?.length > 0 ? (
               <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
                 {order.returns.map((ret: any, i: number) => (
                   <div key={ret.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 0", borderBottom: i < order.returns.length - 1 ? "1px solid var(--border-soft)" : "none" }}>
@@ -129,8 +184,56 @@ export default function OrderDetailsPage() {
                   </div>
                 ))}
               </div>
-            </div>
-          )}
+            ) : (
+              !returnForm && <p style={{ color: "var(--text-muted)", fontSize: 13, margin: 0 }}>No returns logged.</p>
+            )}
+
+            {/* Log Return Form */}
+            {returnForm && (
+              <div style={{ marginTop: order.returns?.length ? 14 : 0, paddingTop: order.returns?.length ? 14 : 0, borderTop: order.returns?.length ? "1px solid var(--border)" : "none" }}>
+                <p style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 10 }}>New Return</p>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr auto", gap: 8, alignItems: "end" }}>
+                  <div>
+                    <label className="form-label">Item (Class)</label>
+                    <select className="input" value={returnForm.itemId} onChange={(e) => setReturnForm({ ...returnForm, itemId: e.target.value })}>
+                      {order.items?.map((item: any) => {
+                        const returned = order.returns?.filter((r: any) => r.itemId === item.id).reduce((s: number, r: any) => s + r.quantity, 0) ?? 0;
+                        const remaining = item.quantity - returned;
+                        return (
+                          <option key={item.id} value={item.id} disabled={remaining <= 0}>
+                            {item.className} (max {remaining})
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="form-label">Quantity</label>
+                    <input className="input" type="number" min={1} placeholder="Qty"
+                      value={returnForm.quantity} onChange={(e) => setReturnForm({ ...returnForm, quantity: e.target.value })} />
+                  </div>
+                  <div>
+                    <label className="form-label">Reason</label>
+                    <input className="input" placeholder="Optional" value={returnForm.reason}
+                      onChange={(e) => setReturnForm({ ...returnForm, reason: e.target.value })} />
+                  </div>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <button className="btn btn-primary" disabled={submittingReturn} onClick={submitReturn} style={{ fontSize: 12 }}>
+                      {submittingReturn ? "..." : "Submit"}
+                    </button>
+                    <button className="btn btn-ghost" onClick={() => { setReturnForm(null); setReturnMsg({ text: "", ok: false }); }} style={{ fontSize: 12 }}>
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+                {returnMsg.text && (
+                  <div className={`alert ${returnMsg.ok ? "alert-success" : "alert-error"}`} style={{ marginTop: 10 }}>
+                    {returnMsg.text}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
 
           {/* Points of Contact */}
           {order.pocs?.length > 0 && (
@@ -212,7 +315,7 @@ export default function OrderDetailsPage() {
                 { label: "Status",       value: <Badge status={order.status} /> },
                 { label: "Created by",   value: order.createdBy?.name },
                 { label: "Order date",   value: order.orderDate    ? new Date(order.orderDate).toLocaleDateString()    : "—" },
-                { label: "Delivery",     value: order.deliveryDate ? new Date(order.deliveryDate).toLocaleDateString() : "—" },
+                { label: "Delivery due", value: order.deliveryDate ? new Date(order.deliveryDate).toLocaleDateString() : "—" },
                 { label: "Created at",   value: new Date(order.createdAt).toLocaleDateString() },
               ].map(({ label, value }) => (
                 <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13 }}>
@@ -222,6 +325,88 @@ export default function OrderDetailsPage() {
               ))}
             </div>
           </div>
+
+          {/* Payment Status */}
+          {me?.roles?.includes("BD_HEAD") || me?.roles?.includes("ADMIN") ? (
+            <div className="card">
+              <h2 style={{ marginBottom: 12 }}>Payment</h2>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <div>
+                  <label className="form-label">Status</label>
+                  <select className="input" value={order.paymentStatus ?? "UNPAID"} disabled={updatingStatus}
+                    onChange={(e) => updateOrderStatus({ paymentStatus: e.target.value })}>
+                    <option value="UNPAID">Unpaid</option>
+                    <option value="PARTIAL">Partial</option>
+                    <option value="PAID">Paid</option>
+                  </select>
+                </div>
+                {order.paymentStatus === "PARTIAL" && (
+                  <div>
+                    <label className="form-label">Amount Paid (₹)</label>
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <input className="input" type="number" defaultValue={order.paidAmount ?? 0}
+                        onBlur={(e) => updateOrderStatus({ paidAmount: parseFloat(e.target.value) || 0 })} />
+                    </div>
+                  </div>
+                )}
+                {order.paymentStatus === "PAID" && (
+                  <p style={{ fontSize: 12, color: "var(--green)", margin: 0 }}>Fully paid · ₹{order.netAmount.toLocaleString()}</p>
+                )}
+                {order.paymentStatus === "PARTIAL" && order.paidAmount > 0 && (
+                  <p style={{ fontSize: 12, color: "var(--yellow)", margin: 0 }}>
+                    Paid ₹{order.paidAmount.toLocaleString()} · Balance ₹{(order.netAmount - order.paidAmount).toLocaleString()}
+                  </p>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="card">
+              <h2 style={{ marginBottom: 12 }}>Payment</h2>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                <span style={{ color: "var(--text-muted)" }}>Status</span>
+                <Badge status={order.paymentStatus ?? "UNPAID"} />
+              </div>
+              {order.paymentStatus === "PARTIAL" && order.paidAmount > 0 && (
+                <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "8px 0 0" }}>
+                  Paid ₹{order.paidAmount.toLocaleString()} / ₹{order.netAmount.toLocaleString()}
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Delivery Status */}
+          {me?.roles?.includes("BD_HEAD") || me?.roles?.includes("ADMIN") ? (
+            <div className="card">
+              <h2 style={{ marginBottom: 12 }}>Delivery</h2>
+              <div>
+                <label className="form-label">Status</label>
+                <select className="input" value={order.deliveryStatus ?? "PENDING"} disabled={updatingStatus}
+                  onChange={(e) => updateOrderStatus({ deliveryStatus: e.target.value })}>
+                  <option value="PENDING">Pending</option>
+                  <option value="DISPATCHED">Dispatched</option>
+                  <option value="DELIVERED">Delivered</option>
+                </select>
+              </div>
+              {order.deliveredAt && (
+                <p style={{ fontSize: 12, color: "var(--green)", margin: "8px 0 0" }}>
+                  Delivered on {new Date(order.deliveredAt).toLocaleDateString()}
+                </p>
+              )}
+            </div>
+          ) : (
+            <div className="card">
+              <h2 style={{ marginBottom: 12 }}>Delivery</h2>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                <span style={{ color: "var(--text-muted)" }}>Status</span>
+                <Badge status={order.deliveryStatus ?? "PENDING"} />
+              </div>
+              {order.deliveredAt && (
+                <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "8px 0 0" }}>
+                  Delivered {new Date(order.deliveredAt).toLocaleDateString()}
+                </p>
+              )}
+            </div>
+          )}
 
           {/* School Contact */}
           {(order.schoolPhone || order.schoolEmail || order.address1) && (

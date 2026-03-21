@@ -11,7 +11,7 @@ function parseJwt(token: string) {
   }
 }
 
-export function middleware(req: NextRequest) {
+export function proxy(req: NextRequest) {
   const token = req.cookies.get("token")?.value;
 
   if (!token) {

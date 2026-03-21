@@ -6,10 +6,11 @@ import { useRouter } from "next/navigation";
 const ANNUAL_MRP: Record<number, number> = { 1:360,2:375,3:390,4:405,5:420,6:435,7:455,8:470 };
 const PAPERBACK_MRP_PLAINS: Record<number, number> = { 1:600,2:600,3:660,4:660,5:660,6:660,7:660,8:660 };
 const PAPERBACK_MRP_HILLS: Record<number, number>  = { 1:600,2:600,3:600,4:600,5:600,6:600,7:600,8:600 };
-
 function getMRP(classNum: number, productType: string): number {
-  if (productType === "PAPERBACKS_HILLS")  return PAPERBACK_MRP_HILLS[classNum];
-  if (productType === "PAPERBACKS_PLAINS") return PAPERBACK_MRP_PLAINS[classNum];
+  if (productType === "PAPERBACKS_HILLS"   ) return PAPERBACK_MRP_HILLS[classNum];
+  if (productType === "PAPERBACKS_PLAINS"  ) return PAPERBACK_MRP_PLAINS[classNum];
+  if (productType === "NUTSHELL_PAPERBACKS") return PAPERBACK_MRP_PLAINS[classNum];
+  if (productType === "NUTSHELL_ANNUAL"    ) return ANNUAL_MRP[classNum];
   return ANNUAL_MRP[classNum];
 }
 
@@ -263,6 +264,8 @@ export default function NewOrderPage() {
                   <option value="ANNUAL">Annual</option>
                   <option value="PAPERBACKS_PLAINS">Paperbacks — Plains</option>
                   <option value="PAPERBACKS_HILLS">Paperbacks — Hills</option>
+                  <option value="NUTSHELL_ANNUAL">Nutshell — Annual</option>
+                  <option value="NUTSHELL_PAPERBACKS">Nutshell — Paperbacks</option>
                 </select>
               </div>
               <div><label className="form-label">Order Date *</label><input className="input" type="date" value={orderDate} onChange={e=>setOrderDate(e.target.value)}/></div>
@@ -320,7 +323,13 @@ export default function NewOrderPage() {
               <div>
                 <h2 style={{margin:0}}>Book Quantities</h2>
                 <p style={{color:"var(--text-muted)",fontSize:13,margin:"4px 0 0"}}>
-                  {productType==="ANNUAL"?"Annual":productType==="PAPERBACKS_HILLS"?"Paperbacks — Hills":"Paperbacks — Plains"} pricing · Leave Agreed blank to use MRP
+                  {{
+                    ANNUAL:               "Annual",
+                    PAPERBACKS_PLAINS:    "Paperbacks — Plains",
+                    PAPERBACKS_HILLS:     "Paperbacks — Hills",
+                    NUTSHELL_ANNUAL:      "Nutshell — Annual",
+                    NUTSHELL_PAPERBACKS:  "Nutshell — Paperbacks",
+                  }[productType] ?? productType} pricing · Leave Agreed blank to use MRP
                 </p>
               </div>
               {grossTotal>0&&(

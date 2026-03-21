@@ -3,9 +3,11 @@
 import { useEffect, useState } from "react";
 
 const PRODUCT_LABELS: Record<string, string> = {
-  ANNUAL:            "Annual",
-  PAPERBACKS_PLAINS: "Paperbacks (Plains)",
-  PAPERBACKS_HILLS:  "Paperbacks (Hills)",
+  ANNUAL:               "Annual",
+  PAPERBACKS_PLAINS:    "Paperbacks (Plains)",
+  PAPERBACKS_HILLS:     "Paperbacks (Hills)",
+  NUTSHELL_ANNUAL:      "Nutshell — Annual",
+  NUTSHELL_PAPERBACKS:  "Nutshell — Paperbacks",
 };
 
 const STAGE_COLORS: Record<string, string> = {
@@ -97,15 +99,30 @@ function DonutChart({ segments, centerLabel }: {
   );
 }
 
+// ── Incentive tier helper ───────────────────────────────────────────
+function calcIncentive(achieved: number, target: number): { pct: number; rate: number; label: string; color: string } {
+  if (!target || target <= 0) return { pct: 0, rate: 0, label: "No target set", color: "var(--text-muted)" };
+  const pct = Math.round((achieved / target) * 100);
+  if (pct >= 100) return { pct, rate: 12, label: "Tier 4 — 12% incentive (100%+ achieved)", color: "var(--green)" };
+  if (pct >= 75)  return { pct, rate: 8,  label: "Tier 3 — 8% incentive (75–100%)",         color: "var(--accent)" };
+  if (pct >= 50)  return { pct, rate: 5,  label: "Tier 2 — 5% incentive (50–75%)",          color: "var(--yellow)" };
+  return { pct, rate: 0, label: "Tier 1 — No incentive (below 50%)", color: "var(--red)" };
+}
+
 // ── Main ───────────────────────────────────────────────────────────
 export default function AnalyticsPage() {
-  const [data, setData]     = useState<any>(null);
-  const [role, setRole]     = useState<string>("");
-  const [loading, setLoading] = useState(true);
-  const [error, setError]   = useState("");
+  const [data, setData]         = useState<any>(null);
+  const [role, setRole]         = useState<string>("");
+  const [targets, setTargets]   = useState<any[]>([]);
+  const [loading, setLoading]   = useState(true);
+  const [error, setError]       = useState("");
 
   useEffect(() => {
-    // Detect role first, then fetch appropriate analytics
+    const now = new Date();
+    const month = now.getMonth() + 1;
+    const year  = now.getFullYear();
+
+    // Detect role first, then fetch appropriate analytics + targets
     fetch("/api/auth/me", { credentials: "include" })
       .then((r) => r.json())
       .then((me) => {
@@ -120,11 +137,15 @@ export default function AnalyticsPage() {
           detectedRole === "BD_HEAD" ? "/api/bd/analytics"     :
           "/api/sales/analytics";
 
-        return fetch(endpoint, { credentials: "include" }).then((r) => r.json());
+        return Promise.all([
+          fetch(endpoint, { credentials: "include" }).then((r) => r.json()),
+          fetch(`/api/targets?month=${month}&year=${year}`, { credentials: "include" }).then((r) => r.json()),
+        ]);
       })
-      .then((d) => {
+      .then(([d, t]) => {
         if (d.error) setError(d.error);
         else setData(d);
+        setTargets(Array.isArray(t) ? t : []);
       })
       .catch(() => setError("Failed to load analytics."))
       .finally(() => setLoading(false));
@@ -294,57 +315,29 @@ export default function AnalyticsPage() {
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
 
-        {/* ── Top schools / Leaderboard ── */}
+        {/* ── Top schools ── */}
         <div className="card">
-          <h2 style={{ marginBottom: 14 }}>
-            {isSales ? "My Top Schools" : isAdmin ? "Sales Leaderboard" : "Team Leaderboard"}
-          </h2>
-          {isSales ? (
-            !data.topSchools?.length ? (
-              <div className="empty-state"><p>No revenue data yet</p></div>
-            ) : (
-              <div>
-                {data.topSchools.map((school: any, i: number) => {
-                  const maxRev = data.topSchools[0].revenue;
-                  const pct    = (school.revenue / maxRev) * 100;
-                  return (
-                    <div key={i} style={{ marginBottom: 12 }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3, fontSize: 13 }}>
-                        <span style={{ fontWeight: 500 }}>{school.name}</span>
-                        <span style={{ fontWeight: 600, fontFamily: "monospace" }}>₹{school.revenue.toLocaleString()}</span>
-                      </div>
-                      <div style={{ background: "var(--border)", borderRadius: 99, height: 4, overflow: "hidden" }}>
-                        <div style={{ width: `${pct}%`, height: "100%", background: "var(--accent)", borderRadius: 99, transition: "width 0.5s ease" }} />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )
+          <h2 style={{ marginBottom: 14 }}>Top Schools by Revenue</h2>
+          {!data.topSchools?.length ? (
+            <div className="empty-state"><p>No revenue data yet</p></div>
           ) : (
-            !data.leaderboard?.length ? (
-              <div className="empty-state"><p>No data yet</p></div>
-            ) : (
-              <div>
-                {data.leaderboard.map((user: any, i: number) => (
-                  <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 0", borderBottom: i < data.leaderboard.length - 1 ? "1px solid var(--border-soft)" : "none" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <span style={{
-                        width: 22, height: 22, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
-                        background: i === 0 ? "#fef3c7" : "var(--bg-subtle)",
-                        color: i === 0 ? "#92400e" : "var(--text-muted)",
-                        fontSize: 11, fontWeight: 700, flexShrink: 0,
-                      }}>{i + 1}</span>
-                      <span style={{ fontWeight: 500, fontSize: 13.5 }}>{user.name}</span>
+            <div>
+              {data.topSchools.map((school: any, i: number) => {
+                const maxRev = data.topSchools[0].revenue;
+                const pct    = (school.revenue / maxRev) * 100;
+                return (
+                  <div key={i} style={{ marginBottom: 12 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3, fontSize: 13 }}>
+                      <span style={{ fontWeight: 500 }}>{school.name}</span>
+                      <span style={{ fontWeight: 600, fontFamily: "monospace" }}>₹{school.revenue.toLocaleString()}</span>
                     </div>
-                    <div style={{ textAlign: "right" }}>
-                      <div style={{ fontWeight: 600 }}>₹{user.revenue.toLocaleString()}</div>
-                      <div style={{ color: "var(--text-muted)", fontSize: 11.5 }}>{user.orders} orders</div>
+                    <div style={{ background: "var(--border)", borderRadius: 99, height: 4, overflow: "hidden" }}>
+                      <div style={{ width: `${pct}%`, height: "100%", background: "var(--accent)", borderRadius: 99, transition: "width 0.5s ease" }} />
                     </div>
                   </div>
-                ))}
-              </div>
-            )
+                );
+              })}
+            </div>
           )}
         </div>
 
@@ -387,6 +380,91 @@ export default function AnalyticsPage() {
           )}
         </div>
       </div>
+
+      {/* ── Incentive Calculator ── */}
+      {isSales && targets.length > 0 && (() => {
+        const t = targets[0];
+        const inc = calcIncentive(data.totalRevenue ?? 0, t.revenueTarget);
+        const incentiveAmt = Math.round((data.totalRevenue ?? 0) * inc.rate / 100);
+        return (
+          <div className="card" style={{ marginBottom: 16 }}>
+            <h2 style={{ marginBottom: 14 }}>This Month's Incentive Estimate</h2>
+            <div style={{ display: "flex", alignItems: "center", gap: 24, flexWrap: "wrap" }}>
+              <div>
+                <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 4 }}>Achievement</div>
+                <div style={{ fontSize: "2rem", fontWeight: 700, color: inc.color }}>{inc.pct}%</div>
+                <div style={{ fontSize: 12, color: inc.color, marginTop: 2 }}>{inc.label}</div>
+              </div>
+              <div style={{ flex: 1, minWidth: 200 }}>
+                <div style={{ height: 10, borderRadius: 5, background: "var(--border)", overflow: "hidden", marginBottom: 8 }}>
+                  <div style={{ height: "100%", width: `${Math.min(100, inc.pct)}%`, background: inc.color, borderRadius: 5, transition: "width 0.5s" }} />
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--text-muted)" }}>
+                  <span>₹{(data.totalRevenue ?? 0).toLocaleString()} achieved</span>
+                  <span>₹{t.revenueTarget.toLocaleString()} target</span>
+                </div>
+              </div>
+              <div style={{ textAlign: "right" }}>
+                <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 4 }}>Est. Incentive</div>
+                <div style={{ fontSize: "1.6rem", fontWeight: 700, color: inc.rate > 0 ? "var(--green)" : "var(--text-muted)" }}>
+                  {inc.rate > 0 ? `₹${incentiveAmt.toLocaleString()}` : "—"}
+                </div>
+                <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>{inc.rate}% of approved revenue</div>
+              </div>
+            </div>
+            <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid var(--border)", display: "flex", gap: 8 }}>
+              {[
+                { label: "< 50%",   rate: "No incentive", color: "var(--red)"   },
+                { label: "50–75%",  rate: "5%",           color: "var(--yellow)"},
+                { label: "75–100%", rate: "8%",           color: "var(--accent)"},
+                { label: "100%+",   rate: "12%",          color: "var(--green)" },
+              ].map((tier) => (
+                <div key={tier.label} style={{ flex: 1, background: "var(--bg)", borderRadius: "var(--radius)", padding: "8px 10px", textAlign: "center", border: "1px solid var(--border)" }}>
+                  <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 3 }}>{tier.label}</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: tier.color }}>{tier.rate}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* BD: show team incentive summary */}
+      {isBD && targets.length > 0 && data.salesActivityStatus?.length > 0 && (() => {
+        // Match targets to team members using monthly revenue from salesActivityStatus
+        // BD analytics returns salesActivityStatus but not individual revenues,
+        // so we show each rep's target status if targets exist
+        const repTargets = targets.filter((t) => t.userId);
+        if (repTargets.length === 0) return null;
+        return (
+          <div className="card" style={{ marginBottom: 16 }}>
+            <h2 style={{ marginBottom: 14 }}>Team Incentive Tracker (This Month)</h2>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 10 }}>
+              {repTargets.map((t: any) => {
+                const member = data.salesActivityStatus?.find((m: any) => m.userId === t.userId);
+                const achieved = member?.monthRevenue ?? 0;
+                const inc = calcIncentive(achieved, t.revenueTarget);
+                const incentiveAmt = Math.round(achieved * inc.rate / 100);
+                return (
+                  <div key={t.userId} style={{ background: "var(--bg)", borderRadius: "var(--radius-lg)", border: "1px solid var(--border)", padding: "12px 14px" }}>
+                    <div style={{ fontWeight: 600, marginBottom: 6, fontSize: 13.5 }}>{t.user?.name ?? "—"}</div>
+                    <div style={{ height: 6, borderRadius: 3, background: "var(--border)", overflow: "hidden", marginBottom: 6 }}>
+                      <div style={{ height: "100%", width: `${Math.min(100, inc.pct)}%`, background: inc.color, borderRadius: 3, transition: "width 0.5s" }} />
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+                      <span style={{ color: inc.color }}>{inc.pct}% · {inc.rate}%</span>
+                      <span style={{ fontWeight: 600 }}>{inc.rate > 0 ? `₹${incentiveAmt.toLocaleString()}` : "—"}</span>
+                    </div>
+                    <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 3 }}>
+                      ₹{achieved.toLocaleString()} / ₹{t.revenueTarget.toLocaleString()}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── BD: Team activity / Admin: Top schools ── */}
       {!isSales && (

@@ -2,6 +2,165 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+const EVENT_LABELS: Record<string, string> = {
+  QUIZ:             "Quiz",
+  TEACHER_TRAINING: "Teacher Training",
+  MEETING:          "Meeting",
+};
+
+const OUTCOME_LABELS: Record<string, string> = {
+  INTERESTED:      "Interested",
+  FOLLOW_UP:       "Follow Up",
+  NOT_INTERESTED:  "Not Interested",
+  ORDER_PLACED:    "Order Placed",
+};
+
+// ── Log Visit Modal ─────────────────────────────────────────────────
+function LogVisitModal({
+  school,
+  onClose,
+  onSuccess,
+}: {
+  school: { id: string; name: string };
+  onClose:   () => void;
+  onSuccess: () => void;
+}) {
+  const [outcome, setOutcome]           = useState("FOLLOW_UP");
+  const [notes, setNotes]               = useState("");
+  const [nextVisitDate, setNextVisitDate] = useState("");
+  const [saving, setSaving]             = useState(false);
+  const [error, setError]               = useState("");
+
+  const handleSave = async () => {
+    setSaving(true); setError("");
+    const res  = await fetch("/api/visits", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ schoolId: school.id, outcome, notes: notes || undefined, nextVisitDate: nextVisitDate || undefined }),
+    });
+    const data = await res.json();
+    if (data.id) { onSuccess(); onClose(); }
+    else { setError(data.error || "Failed to log visit."); setSaving(false); }
+  };
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 60, padding: 24 }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="fade-in" style={{ background: "var(--surface)", borderRadius: "var(--radius-xl)", border: "1px solid var(--border)", padding: 28, width: "100%", maxWidth: 400, boxShadow: "0 24px 48px rgba(0,0,0,0.18)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+          <div>
+            <h2 style={{ margin: "0 0 2px" }}>Log Visit</h2>
+            <p style={{ margin: 0, fontSize: 13, color: "var(--text-muted)" }}>{school.name}</p>
+          </div>
+          <button className="btn btn-ghost" onClick={onClose} style={{ fontSize: 18, padding: "2px 8px" }}>×</button>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div>
+            <label className="form-label">Outcome</label>
+            <select className="input" value={outcome} onChange={(e) => setOutcome(e.target.value)}>
+              {Object.entries(OUTCOME_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="form-label">Notes</label>
+            <textarea className="input" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)}
+              placeholder="What was discussed?" style={{ resize: "vertical" }} />
+          </div>
+          <div>
+            <label className="form-label">Next Visit Date</label>
+            <input className="input" type="date" value={nextVisitDate} onChange={(e) => setNextVisitDate(e.target.value)} />
+          </div>
+        </div>
+
+        {error && <div className="alert alert-error" style={{ marginTop: 12 }}>{error}</div>}
+
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 18 }}>
+          <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary" disabled={saving} onClick={handleSave}>
+            {saving ? "Saving..." : "Log Visit"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Schedule Event Modal ────────────────────────────────────────────
+function ScheduleEventModal({
+  school,
+  onClose,
+  onSuccess,
+}: {
+  school: { id: string; name: string };
+  onClose:   () => void;
+  onSuccess: () => void;
+}) {
+  const [type, setType]   = useState("QUIZ");
+  const [date, setDate]   = useState("");
+  const [notes, setNotes] = useState("");
+  const [saving, setSaving]   = useState(false);
+  const [error, setError]     = useState("");
+
+  const handleSave = async () => {
+    if (!date) { setError("Date is required."); return; }
+    setSaving(true); setError("");
+    const res  = await fetch("/api/events", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ schoolId: school.id, type, date, notes: notes || undefined }),
+    });
+    const data = await res.json();
+    if (data.id) { onSuccess(); onClose(); }
+    else { setError(data.error || "Failed to schedule event."); setSaving(false); }
+  };
+
+  return (
+    <div
+      style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:60,padding:24 }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="fade-in" style={{ background:"var(--surface)",borderRadius:"var(--radius-xl)",border:"1px solid var(--border)",padding:28,width:"100%",maxWidth:420,boxShadow:"0 24px 48px rgba(0,0,0,0.18)" }}>
+        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20 }}>
+          <div>
+            <h2 style={{ margin:"0 0 2px" }}>Schedule Event</h2>
+            <p style={{ margin:0,fontSize:13,color:"var(--text-muted)" }}>{school.name}</p>
+          </div>
+          <button className="btn btn-ghost" onClick={onClose} style={{ fontSize:18,padding:"2px 8px",lineHeight:1 }}>×</button>
+        </div>
+
+        <div style={{ display:"flex",flexDirection:"column",gap:12 }}>
+          <div>
+            <label className="form-label">Event Type</label>
+            <select className="input" value={type} onChange={(e) => setType(e.target.value)}>
+              <option value="QUIZ">Quiz</option>
+              <option value="TEACHER_TRAINING">Teacher Training</option>
+              <option value="MEETING">Meeting</option>
+            </select>
+          </div>
+          <div>
+            <label className="form-label">Date *</label>
+            <input className="input" type="datetime-local" value={date} onChange={(e) => setDate(e.target.value)} />
+          </div>
+          <div>
+            <label className="form-label">Notes</label>
+            <textarea className="input" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Any additional details..." style={{ resize:"vertical" }} />
+          </div>
+        </div>
+
+        {error && <div className="alert alert-error" style={{ marginTop:12 }}>{error}</div>}
+
+        <div style={{ display:"flex",gap:8,justifyContent:"flex-end",marginTop:18 }}>
+          <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary" disabled={saving} onClick={handleSave}>
+            {saving ? "Saving..." : "Schedule"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const ITEMS_PER_PAGE = 10;
 
 const STAGES = [
@@ -256,6 +415,8 @@ export default function PipelinePage() {
   const [selected, setSelected]       = useState<string[]>([]);
   const [page, setPage]               = useState(1);
   const [showModal, setShowModal]     = useState(false);
+  const [eventSchool, setEventSchool] = useState<{ id: string; name: string } | null>(null);
+  const [visitSchool, setVisitSchool] = useState<{ id: string; name: string } | null>(null);
 
   const isBDorAdmin = me?.roles.includes("BD_HEAD") || me?.roles.includes("ADMIN");
 
@@ -447,6 +608,7 @@ export default function PipelinePage() {
                     <th>Last Visit</th>
                     <th>Revenue</th>
                     <th>Stage</th>
+                    <th></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -481,10 +643,22 @@ export default function PipelinePage() {
                           {STAGES.map((s) => <option key={s} value={s}>{s.replaceAll("_"," ")}</option>)}
                         </select>
                       </td>
+                      <td>
+                        <div style={{ display:"flex",gap:4 }}>
+                          <button className="btn btn-secondary" style={{ fontSize:11,padding:"4px 8px",whiteSpace:"nowrap" }}
+                            onClick={() => setVisitSchool({ id: school.id, name: school.name })}>
+                            Visit
+                          </button>
+                          <button className="btn btn-secondary" style={{ fontSize:11,padding:"4px 8px",whiteSpace:"nowrap" }}
+                            onClick={() => setEventSchool({ id: school.id, name: school.name })}>
+                            Event
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                   {paginated.length===0&&(
-                    <tr><td colSpan={7} style={{ textAlign:"center",padding:"40px 0",color:"var(--text-muted)" }}>
+                    <tr><td colSpan={8} style={{ textAlign:"center",padding:"40px 0",color:"var(--text-muted)" }}>
                       {me?.roles.includes("SALES")
                         ? "No schools assigned to you yet. Click \"New Pipeline\" to add one."
                         : "No schools match your filters."}
@@ -520,6 +694,24 @@ export default function PipelinePage() {
           </>
         )}
       </div>
+
+      {/* Log Visit Modal */}
+      {visitSchool && (
+        <LogVisitModal
+          school={visitSchool}
+          onClose={() => setVisitSchool(null)}
+          onSuccess={() => fetchData()}
+        />
+      )}
+
+      {/* Schedule Event Modal */}
+      {eventSchool && (
+        <ScheduleEventModal
+          school={eventSchool}
+          onClose={() => setEventSchool(null)}
+          onSuccess={() => {}}
+        />
+      )}
 
       {/* New Pipeline Modal */}
       {showModal && me && (

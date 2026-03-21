@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from "react";
 import Badge from "@/app/components/Badge";
+import { EventCalendar, UpcomingEvents } from "@/app/components/EventCalendar";
 
 export default function AdminDashboard() {
   const [data, setData] = useState<any>(null);
   const [users, setUsers] = useState<any[]>([]);
+  const [events, setEvents] = useState<any[]>([]);
   const [analyticsError, setAnalyticsError] = useState("");
 
   const fetchUsers = async () => {
@@ -21,9 +23,18 @@ export default function AdminDashboard() {
     else setData(result);
   };
 
+  const fetchEvents = async () => {
+    const from = new Date(); from.setDate(1); from.setHours(0, 0, 0, 0);
+    const to   = new Date(from.getFullYear(), from.getMonth() + 3, 0);
+    const res  = await fetch(`/api/events?from=${from.toISOString()}&to=${to.toISOString()}`, { credentials: "include" });
+    const result = await res.json();
+    if (Array.isArray(result)) setEvents(result);
+  };
+
   useEffect(() => {
     fetchUsers();
     fetchAnalytics();
+    fetchEvents();
   }, []);
 
   const bdHeads = users.filter((u) =>
@@ -75,59 +86,33 @@ export default function AdminDashboard() {
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "3fr 2fr", gap: 16 }}>
-        {/* ── Leaderboard ── */}
+        {/* ── Top Schools ── */}
         <div className="card">
-          <h2 style={{ marginBottom: 16 }}>Sales Leaderboard</h2>
+          <h2 style={{ marginBottom: 16 }}>Top Schools by Revenue</h2>
           {!data ? (
             <p style={{ color: "var(--text-muted)", fontSize: 13 }}>Loading...</p>
-          ) : data.leaderboard?.length === 0 ? (
+          ) : !data.topSchools?.length ? (
             <div className="empty-state">
-              <p>No data yet</p>
+              <p>No revenue yet</p>
               <p>Revenue appears once BD approves orders</p>
             </div>
           ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
-              {data.leaderboard?.map((user: any, i: number) => (
-                <div
-                  key={i}
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    padding: "10px 0",
-                    borderBottom: i < data.leaderboard.length - 1 ? "1px solid var(--border-soft)" : "none",
-                  }}
-                >
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <span
-                      style={{
-                        width: 22,
-                        height: 22,
-                        borderRadius: "50%",
-                        background: i === 0 ? "#fef3c7" : "var(--bg-subtle)",
-                        color: i === 0 ? "#92400e" : "var(--text-muted)",
-                        fontSize: 11,
-                        fontWeight: 700,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        flexShrink: 0,
-                      }}
-                    >
-                      {i + 1}
-                    </span>
-                    <span style={{ fontWeight: 500, fontSize: 13.5 }}>{user.name}</span>
-                  </div>
-                  <div style={{ textAlign: "right" }}>
-                    <div style={{ fontWeight: 600, fontSize: 13.5 }}>
-                      ₹{user.revenue.toLocaleString()}
+            <div>
+              {data.topSchools.map((school: any, i: number) => {
+                const maxRev = data.topSchools[0].revenue;
+                const pct    = (school.revenue / maxRev) * 100;
+                return (
+                  <div key={i} style={{ marginBottom: 12 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3, fontSize: 13 }}>
+                      <span style={{ fontWeight: 500 }}>{school.name}</span>
+                      <span style={{ fontWeight: 600, fontFamily: "monospace" }}>₹{school.revenue.toLocaleString()}</span>
                     </div>
-                    <div style={{ color: "var(--text-muted)", fontSize: 11.5 }}>
-                      {user.orders} order{user.orders !== 1 ? "s" : ""}
+                    <div style={{ background: "var(--border)", borderRadius: 99, height: 4, overflow: "hidden" }}>
+                      <div style={{ width: `${pct}%`, height: "100%", background: "var(--accent)", borderRadius: 99, transition: "width 0.5s ease" }} />
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -168,6 +153,18 @@ export default function AdminDashboard() {
               ))}
             </div>
           )}
+        </div>
+      </div>
+
+      {/* ── Calendar + Upcoming Events ── */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginTop: 16 }}>
+        <div className="card">
+          <h2 style={{ marginBottom: 14 }}>Calendar</h2>
+          <EventCalendar events={events} />
+        </div>
+        <div className="card">
+          <h2 style={{ marginBottom: 14 }}>Upcoming Events</h2>
+          <UpcomingEvents events={events} />
         </div>
       </div>
 

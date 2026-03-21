@@ -2,11 +2,16 @@
 
 import { useEffect, useState } from "react";
 import Badge from "@/app/components/Badge";
+import { EventCalendar, UpcomingEvents } from "@/app/components/EventCalendar";
+import VisitAlerts from "@/app/components/VisitAlerts";
+import DeliveryAlerts from "@/app/components/DeliveryAlerts";
 
 export default function SalesPage() {
-  const [tasks, setTasks]   = useState<any[]>([]);
-  const [orders, setOrders] = useState<any[]>([]);
-  const [report, setReport] = useState({ summary: "", location: "" });
+  const [tasks, setTasks]     = useState<any[]>([]);
+  const [orders, setOrders]   = useState<any[]>([]);
+  const [events, setEvents]   = useState<any[]>([]);
+  const [target, setTarget]   = useState<any>(null);
+  const [report, setReport]   = useState({ summary: "", location: "" });
   const [reportMsg, setReportMsg] = useState({ text: "", ok: false });
   const [submittingReport, setSubmittingReport] = useState(false);
   const [completingTask, setCompletingTask] = useState<string | null>(null);
@@ -21,9 +26,26 @@ export default function SalesPage() {
       .then((r) => r.json())
       .then((d) => setOrders(Array.isArray(d) ? d : []));
 
+  const fetchEvents = () => {
+    const from = new Date(); from.setDate(1); from.setHours(0, 0, 0, 0);
+    const to   = new Date(from.getFullYear(), from.getMonth() + 3, 0);
+    fetch(`/api/events?from=${from.toISOString()}&to=${to.toISOString()}`, { credentials: "include" })
+      .then((r) => r.json())
+      .then((d) => setEvents(Array.isArray(d) ? d : []));
+  };
+
+  const fetchTarget = () => {
+    const now = new Date();
+    fetch(`/api/targets?month=${now.getMonth() + 1}&year=${now.getFullYear()}`, { credentials: "include" })
+      .then((r) => r.json())
+      .then((d) => setTarget(Array.isArray(d) && d.length > 0 ? d[0] : null));
+  };
+
   useEffect(() => {
     fetchTasks();
     fetchOrders();
+    fetchEvents();
+    fetchTarget();
   }, []);
 
   const completeTask = async (taskId: string) => {
@@ -79,6 +101,24 @@ export default function SalesPage() {
   const now = new Date();
   const overdueTasks = pendingTasks.filter((t) => new Date(t.dueDate) < now);
 
+  // Revenue achieved = sum of APPROVED order netAmounts this month
+  const monthRevenue = orders
+    .filter((o) => {
+      const d = new Date(o.createdAt);
+      return o.status === "APPROVED" && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    })
+    .reduce((sum, o) => sum + (o.netAmount || 0), 0);
+
+  const revPct = target?.revenueTarget > 0
+    ? Math.min(100, Math.round((monthRevenue / target.revenueTarget) * 100))
+    : null;
+  const ordPct = target?.ordersTarget > 0
+    ? Math.min(100, Math.round((orders.filter((o) => {
+        const d = new Date(o.createdAt);
+        return o.status === "APPROVED" && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+      }).length / target.ordersTarget) * 100))
+    : null;
+
   return (
     <>
       <div className="page-header">
@@ -89,9 +129,9 @@ export default function SalesPage() {
       {/* ── Stats ── */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 14, marginBottom: 24 }}>
         {[
-          { label: "My Orders",     value: orders.length, color: "var(--text-primary)" },
-          { label: "Pending Tasks", value: pendingTasks.length, color: "var(--yellow)" },
-          { label: "Overdue",       value: overdueTasks.length, color: overdueTasks.length > 0 ? "var(--red)" : "var(--text-primary)" },
+          { label: "My Orders",     value: orders.length,        color: "var(--text-primary)" },
+          { label: "Pending Tasks", value: pendingTasks.length,  color: "var(--yellow)" },
+          { label: "Overdue",       value: overdueTasks.length,  color: overdueTasks.length > 0 ? "var(--red)" : "var(--text-primary)" },
           { label: "Completed",     value: completedTasks.length, color: "var(--green)" },
         ].map((s) => (
           <div key={s.label} className="stat-card">
@@ -99,6 +139,69 @@ export default function SalesPage() {
             <div className="stat-value" style={{ color: s.color }}>{s.value}</div>
           </div>
         ))}
+      </div>
+
+      <DeliveryAlerts horizonDays={7} />
+      <VisitAlerts thresholdDays={30} />
+
+      {/* ── Monthly Target Progress ── */}
+      {target && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <h2 style={{ marginBottom: 14 }}>This Month's Target</h2>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            {/* Revenue */}
+            <div>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                <span style={{ fontSize: 13, color: "var(--text-muted)" }}>Revenue</span>
+                <span style={{ fontSize: 13, fontWeight: 600 }}>
+                  ₹{monthRevenue.toLocaleString()} / ₹{target.revenueTarget.toLocaleString()}
+                </span>
+              </div>
+              <div style={{ height: 8, borderRadius: 4, background: "var(--border)", overflow: "hidden" }}>
+                <div style={{
+                  height: "100%", borderRadius: 4,
+                  width: `${revPct ?? 0}%`,
+                  background: (revPct ?? 0) >= 100 ? "var(--green)" : (revPct ?? 0) >= 75 ? "var(--accent)" : "var(--yellow)",
+                  transition: "width 0.4s",
+                }} />
+              </div>
+              <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4 }}>{revPct ?? 0}% achieved</div>
+            </div>
+            {/* Orders */}
+            <div>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                <span style={{ fontSize: 13, color: "var(--text-muted)" }}>Orders</span>
+                <span style={{ fontSize: 13, fontWeight: 600 }}>
+                  {orders.filter((o) => {
+                    const d = new Date(o.createdAt);
+                    return o.status === "APPROVED" && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+                  }).length} / {target.ordersTarget}
+                </span>
+              </div>
+              <div style={{ height: 8, borderRadius: 4, background: "var(--border)", overflow: "hidden" }}>
+                <div style={{
+                  height: "100%", borderRadius: 4,
+                  width: `${ordPct ?? 0}%`,
+                  background: (ordPct ?? 0) >= 100 ? "var(--green)" : (ordPct ?? 0) >= 75 ? "var(--accent)" : "var(--yellow)",
+                  transition: "width 0.4s",
+                }} />
+              </div>
+              <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4 }}>{ordPct ?? 0}% achieved</div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Calendar + Upcoming Events ── */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
+        <div className="card">
+          <h2 style={{ marginBottom: 14 }}>Calendar</h2>
+          <EventCalendar events={events} />
+        </div>
+        <div className="card">
+          <h2 style={{ marginBottom: 14 }}>Upcoming Events</h2>
+          <UpcomingEvents events={events} />
+        </div>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>

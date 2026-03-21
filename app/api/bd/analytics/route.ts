@@ -61,16 +61,6 @@ export async function GET(req: Request) {
       productBreakdown[pt].revenue += o.netAmount;
     });
 
-    // ── Team leaderboard ──────────────────────────────────────────
-    const grouped: Record<string, { name: string; orders: number; revenue: number }> = {};
-    approvedOrders.forEach((o) => {
-      const id = o.createdById;
-      if (!grouped[id]) grouped[id] = { name: o.createdBy.name, orders: 0, revenue: 0 };
-      grouped[id].orders  += 1;
-      grouped[id].revenue += o.netAmount;
-    });
-    const leaderboard = Object.values(grouped).sort((a, b) => b.revenue - a.revenue);
-
     // ── Top schools ───────────────────────────────────────────────
     const schoolRevenue: Record<string, { name: string; revenue: number; orders: number }> = {};
     approvedOrders.forEach((o) => {
@@ -111,11 +101,20 @@ export async function GET(req: Request) {
       orderBy: { createdAt: "desc" },
       include: { salesUser: { select: { id: true, name: true } } },
     });
+    // Per-rep current-month revenue (for incentive tracker)
+    const currentMonth = now.getMonth();
+    const currentYear  = now.getFullYear();
     const salesActivityStatus = team.map((user) => {
       const latest     = reports.find((r) => r.salesUserId === user.id);
       const lastActivity = latest?.createdAt ?? null;
       const isInactive   = !lastActivity || Date.now() - new Date(lastActivity).getTime() > 24 * 60 * 60 * 1000;
-      return { userId: user.id, name: user.name, lastActivity, isInactive };
+      const monthRevenue = approvedOrders
+        .filter((o) => {
+          const d = new Date(o.createdAt);
+          return o.createdById === user.id && d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+        })
+        .reduce((s, o) => s + o.netAmount, 0);
+      return { userId: user.id, name: user.name, lastActivity, isInactive, monthRevenue };
     });
 
     return NextResponse.json({
@@ -130,7 +129,6 @@ export async function GET(req: Request) {
       monthlyRevenue,
       productBreakdown,
       topSchools,
-      leaderboard,
 
       // Pipeline
       pipelineBreakdown,

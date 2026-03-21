@@ -23,7 +23,8 @@
 ## PHASE 2 – PIPELINE SYSTEM
 [x] Pipeline board UI
 [x] Stage update API
-[ ] Conversion tracking
+[x] Conversion tracking       ← conversionRate in /api/sales/analytics (CLOSED_WON / total closed)
+[x] Event scheduling          ← Quiz / Teacher Training / Meeting per school with date; calendar on sales dashboard
 [ ] Forecast engine
 
 ---
@@ -52,7 +53,7 @@
 [ ] System metrics
 [ ] Organization settings
 [ ] Pricing engine control
-[ ] Audit log viewer
+[x] Audit log viewer          ← full page + paginated API at /audit-log with action filtering
 
 ---
 
@@ -66,6 +67,6 @@
 
 ## PHASE 7 – ENTERPRISE GRADE
 [ ] Role permission matrix
-[ ] Data export
+[x] Data export               ← Google Sheets export via /api/admin/export-sheets + ExportSheetsButton
 [ ] Financial reports
 [ ] Billing module
