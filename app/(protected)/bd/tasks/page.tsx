@@ -7,7 +7,7 @@ export default function BDTasksPage() {
   const [tasks, setTasks]   = useState<any[]>([]);
   const [team, setTeam]     = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [form, setForm] = useState({ title: "", description: "", dueDate: "", assignedToId: "" });
+  const [form, setForm] = useState({ title: "", description: "", dueDate: "", assignedToId: "", priority: "MEDIUM" });
   const [msg, setMsg] = useState({ text: "", ok: false });
   const [submitting, setSubmitting] = useState(false);
   const [filterStatus, setFilterStatus] = useState("ALL");
@@ -39,7 +39,7 @@ export default function BDTasksPage() {
     const data = await res.json();
     if (data.id) {
       setMsg({ text: "Task created.", ok: true });
-      setForm({ title: "", description: "", dueDate: "", assignedToId: "" });
+      setForm({ title: "", description: "", dueDate: "", assignedToId: "", priority: "MEDIUM" });
       fetchAll();
     } else {
       setMsg({ text: data.error || "Failed to create task.", ok: false });
@@ -48,7 +48,11 @@ export default function BDTasksPage() {
   };
 
   const now = new Date();
-  const filtered = tasks.filter((t) => filterStatus === "ALL" || t.status === filterStatus);
+  const filtered = tasks.filter((t) => {
+    if (filterStatus === "OVERDUE") return t.status !== "COMPLETED" && new Date(t.dueDate) < now;
+    if (filterStatus === "HIGH")    return t.priority === "HIGH" && t.status !== "COMPLETED";
+    return filterStatus === "ALL" || t.status === filterStatus;
+  });
 
   const counts = {
     total:     tasks.length,
@@ -104,6 +108,15 @@ export default function BDTasksPage() {
                 onChange={(e) => setForm({ ...form, dueDate: e.target.value })} />
             </div>
             <div>
+              <label className="form-label">Priority</label>
+              <select className="input" value={form.priority}
+                onChange={(e) => setForm({ ...form, priority: e.target.value })}>
+                <option value="LOW">Low</option>
+                <option value="MEDIUM">Medium</option>
+                <option value="HIGH">High</option>
+              </select>
+            </div>
+            <div>
               <label className="form-label">Description</label>
               <textarea className="input" rows={3} placeholder="Optional details..."
                 value={form.description} style={{ resize: "vertical" }}
@@ -123,7 +136,7 @@ export default function BDTasksPage() {
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
             <h2 style={{ margin: 0 }}>All Tasks</h2>
             <div style={{ display: "flex", gap: 6 }}>
-              {["ALL", "PENDING", "COMPLETED"].map((s) => (
+              {["ALL", "PENDING", "COMPLETED", "OVERDUE", "HIGH"].map((s) => (
                 <button
                   key={s}
                   onClick={() => setFilterStatus(s)}
@@ -163,11 +176,19 @@ export default function BDTasksPage() {
                   >
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                       <div style={{ flex: 1, minWidth: 0, marginRight: 12 }}>
-                        {overdue && (
-                          <span style={{ fontSize: 10.5, fontWeight: 700, color: "var(--red)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: 2 }}>
-                            Overdue
-                          </span>
-                        )}
+                        <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 2, flexWrap: "wrap" }}>
+                          {overdue && (
+                            <span style={{ fontSize: 10, fontWeight: 700, color: "var(--red)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Overdue</span>
+                          )}
+                          {task.priority && task.priority !== "MEDIUM" && (
+                            <span style={{
+                              fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em",
+                              color: task.priority === "HIGH" ? "var(--red)" : "var(--text-muted)",
+                            }}>
+                              {task.priority === "HIGH" ? "! High" : "Low"}
+                            </span>
+                          )}
+                        </div>
                         <p style={{ fontWeight: 500, margin: 0, fontSize: 13.5 }}>{task.title}</p>
                         {task.description && (
                           <p style={{ color: "var(--text-secondary)", fontSize: 13, margin: "2px 0 0" }}>

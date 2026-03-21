@@ -25,13 +25,13 @@
 [x] Stage update API
 [x] Conversion tracking       ← conversionRate in /api/sales/analytics (CLOSED_WON / total closed)
 [x] Event scheduling          ← Quiz / Teacher Training / Meeting per school with date; calendar on sales dashboard
-[ ] Forecast engine
+[x] Forecast engine           ← stage-weighted revenue forecast in BD analytics + analytics page
 
 ---
 
 ## PHASE 3 – FIELD INTELLIGENCE
-[ ] Visit tracking UI
-[ ] Visit analytics
+[x] Visit tracking UI          ← LogVisitModal on pipeline page
+[x] Visit analytics            ← outcome breakdown on analytics page (BD + Sales)
 [ ] Location logging system
 [ ] Performance heatmap
 
@@ -40,9 +40,9 @@
 ## PHASE 4 – TASK ENGINE 2.0
 [x] Task assignment (BD → Sales)
 [x] Task completion (Sales)
-[ ] Task priority levels
-[ ] Task analytics
-[ ] Overdue tracking
+[x] Task priority levels       ← HIGH/MEDIUM/LOW field on Task; priority selector + badge in BD tasks UI
+[x] Task analytics             ← completion rate, overdue count in analytics + BD tasks stat cards
+[x] Overdue tracking           ← overdue badge + filter on BD tasks; overdueTasks in analytics
 [ ] Task reporting dashboard
 
 ---
@@ -50,7 +50,7 @@
 ## PHASE 5 – ADMIN CONTROL CENTER
 [x] User management
 [x] Manager assignment
-[ ] System metrics
+[x] System metrics            ← /admin/metrics page with users, orders, revenue, pipeline, tasks, field activity
 [ ] Organization settings
 [ ] Pricing engine control
 [x] Audit log viewer          ← full page + paginated API at /audit-log with action filtering

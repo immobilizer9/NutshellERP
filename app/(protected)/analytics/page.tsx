@@ -219,6 +219,10 @@ export default function AnalyticsPage() {
             <div className="stat-value" style={{ color: "var(--accent)" }}>{data.conversionRate ?? 0}%</div>
           </div>
           <div className="stat-card">
+            <div className="stat-label">Total Visits</div>
+            <div className="stat-value">{data.totalVisits ?? 0}</div>
+          </div>
+          <div className="stat-card">
             <div className="stat-label">Task Completion</div>
             <div className="stat-value" style={{ color: "var(--accent)" }}>{data.completionRate ?? 0}%</div>
           </div>
@@ -234,8 +238,16 @@ export default function AnalyticsPage() {
             <div className="stat-value" style={{ color: "var(--green)" }}>₹{(data.totalRevenue ?? 0).toLocaleString()}</div>
           </div>
           <div className="stat-card">
+            <div className="stat-label">Pipeline Forecast</div>
+            <div className="stat-value" style={{ color: "var(--accent)" }}>₹{(data.forecastRevenue ?? 0).toLocaleString()}</div>
+          </div>
+          <div className="stat-card">
             <div className="stat-label">Pending Approval</div>
             <div className="stat-value" style={{ color: "var(--yellow)" }}>{data.pendingOrders ?? 0}</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-label">Total Visits</div>
+            <div className="stat-value">{data.totalVisits ?? 0}</div>
           </div>
           <div className="stat-card">
             <div className="stat-label">Task Completion</div>
@@ -465,6 +477,50 @@ export default function AnalyticsPage() {
           </div>
         );
       })()}
+
+      {/* ── Visit Outcomes (BD + Sales) ── */}
+      {!isAdmin && (data.totalVisits ?? 0) > 0 && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <h2 style={{ marginBottom: 14 }}>Visit Outcome Breakdown</h2>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: 10 }}>
+            {[
+              { key: "INTERESTED",     label: "Interested",      color: "var(--green)"  },
+              { key: "FOLLOW_UP",      label: "Follow-up",       color: "var(--yellow)" },
+              { key: "ORDER_PLACED",   label: "Order Placed",    color: "var(--accent)"  },
+              { key: "NOT_INTERESTED", label: "Not Interested",  color: "var(--red)"    },
+              { key: "NO_OUTCOME",     label: "No Outcome",      color: "var(--text-muted)" },
+            ].map(({ key, label, color }) => {
+              const count = data.visitOutcomes?.[key] ?? 0;
+              if (count === 0) return null;
+              return (
+                <div key={key} style={{ background: "var(--bg)", borderRadius: "var(--radius)", border: "1px solid var(--border)", padding: "12px 14px", textAlign: "center" }}>
+                  <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.04em" }}>{label}</div>
+                  <div style={{ fontSize: "1.6rem", fontWeight: 700, color }}>{count}</div>
+                  <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
+                    {Math.round((count / data.totalVisits) * 100)}%
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── BD: Forecast card ── */}
+      {isBD && (data.forecastRevenue ?? 0) > 0 && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <h2 style={{ marginBottom: 6 }}>Pipeline Revenue Forecast</h2>
+          <p style={{ fontSize: 13, color: "var(--text-muted)", margin: "0 0 14px" }}>
+            Weighted by pipeline stage probability — based on average approved order value of ₹{Math.round((data.totalRevenue ?? 0) / Math.max(1, data.approvedOrders ?? 1)).toLocaleString()}
+          </p>
+          <div style={{ fontSize: "2rem", fontWeight: 700, color: "var(--accent)" }}>
+            ₹{(data.forecastRevenue ?? 0).toLocaleString()}
+          </div>
+          <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 6 }}>
+            Across {data.totalSchools ?? 0} assigned schools using stage weights: Lead 5% → Contacted 15% → Visited 30% → Proposal 50% → Negotiation 70% → Won 100%
+          </p>
+        </div>
+      )}
 
       {/* ── BD: Team activity / Admin: Top schools ── */}
       {!isSales && (

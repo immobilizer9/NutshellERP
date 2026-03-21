@@ -73,7 +73,11 @@ export async function GET(req: Request) {
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, 8);
 
-    // ── Pipeline breakdown ────────────────────────────────────────
+    // ── Pipeline breakdown + forecast ─────────────────────────────
+    const STAGE_WEIGHTS: Record<string, number> = {
+      LEAD: 0.05, CONTACTED: 0.15, VISITED: 0.30,
+      PROPOSAL_SENT: 0.50, NEGOTIATION: 0.70, CLOSED_WON: 1.0, CLOSED_LOST: 0,
+    };
     const schools = await prisma.school.findMany({
       where:  { assignedToId: { in: teamIds } },
       select: { pipelineStage: true },
@@ -81,6 +85,13 @@ export async function GET(req: Request) {
     const stageCounts: Record<string, number> = {};
     schools.forEach((s) => { stageCounts[s.pipelineStage] = (stageCounts[s.pipelineStage] ?? 0) + 1; });
     const pipelineBreakdown = Object.entries(stageCounts).map(([stage, count]) => ({ stage, count }));
+    // Weighted forecast: avg approved order value × stage probability × school count
+    const avgOrderValue = approvedOrders.length > 0 ? totalRevenue / approvedOrders.length : 0;
+    const forecastRevenue = Math.round(
+      Object.entries(stageCounts).reduce((sum, [stage, count]) => {
+        return sum + count * (STAGE_WEIGHTS[stage] ?? 0) * avgOrderValue;
+      }, 0)
+    );
 
     // ── Tasks ─────────────────────────────────────────────────────
     const tasks = await prisma.task.findMany({
@@ -94,6 +105,18 @@ export async function GET(req: Request) {
     const pendingTasks   = tasks.filter((t) => t.status === "PENDING").length;
     const overdueTasks   = tasks.filter((t) => t.status !== "COMPLETED" && new Date(t.dueDate) < now).length;
     const completionRate = totalTasks === 0 ? 0 : Math.round((completedTasks / totalTasks) * 100);
+
+    // ── Visit analytics ───────────────────────────────────────────
+    const visits = await prisma.visit.findMany({
+      where: { salesUserId: { in: teamIds } },
+      select: { outcome: true, createdAt: true },
+    });
+    const visitOutcomes: Record<string, number> = {};
+    visits.forEach((v) => {
+      const k = v.outcome ?? "NO_OUTCOME";
+      visitOutcomes[k] = (visitOutcomes[k] ?? 0) + 1;
+    });
+    const totalVisits = visits.length;
 
     // ── Sales activity status ─────────────────────────────────────
     const reports = await prisma.dailyReport.findMany({
@@ -130,9 +153,14 @@ export async function GET(req: Request) {
       productBreakdown,
       topSchools,
 
-      // Pipeline
+      // Pipeline + forecast
       pipelineBreakdown,
       totalSchools: schools.length,
+      forecastRevenue,
+
+      // Visits
+      totalVisits,
+      visitOutcomes,
 
       // Tasks
       totalTasks,

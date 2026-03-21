@@ -243,6 +243,8 @@ model Task {
   description String?
   dueDate     DateTime
   status      String   @default("PENDING")
+  priority    String   @default("MEDIUM")
+  // Values: LOW | MEDIUM | HIGH
 
   assignedToId String
   assignedById String

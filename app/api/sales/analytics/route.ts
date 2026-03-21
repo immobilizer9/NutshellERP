@@ -114,6 +114,18 @@ export async function GET(req: Request) {
     const totalClosed = closedWon + closedLost;
     const conversionRate = totalClosed === 0 ? 0 : Math.round((closedWon / totalClosed) * 100);
 
+    // ── Visit analytics ──────────────────────────────────────────
+    const visits = await prisma.visit.findMany({
+      where:  { salesUserId: userId },
+      select: { outcome: true },
+    });
+    const visitOutcomes: Record<string, number> = {};
+    visits.forEach((v) => {
+      const k = v.outcome ?? "NO_OUTCOME";
+      visitOutcomes[k] = (visitOutcomes[k] ?? 0) + 1;
+    });
+    const totalVisits = visits.length;
+
     return NextResponse.json({
       // Orders
       totalOrders,
@@ -142,6 +154,10 @@ export async function GET(req: Request) {
       pipelineBreakdown,
       totalSchools: schools.length,
       conversionRate,
+
+      // Visits
+      totalVisits,
+      visitOutcomes,
     });
   } catch (error) {
     console.error("Sales analytics error:", error);

@@ -13,7 +13,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const { title, description, dueDate, assignedToId } = await req.json();
+    const { title, description, dueDate, assignedToId, priority } = await req.json();
 
     if (!title || !dueDate || !assignedToId) {
       return NextResponse.json(
@@ -52,6 +52,7 @@ export async function POST(req: Request) {
         dueDate:     new Date(dueDate),
         assignedToId,
         assignedById: decoded.userId,
+        priority:    ["LOW", "MEDIUM", "HIGH"].includes(priority) ? priority : "MEDIUM",
       },
       include: {
         assignedTo: { select: { id: true, name: true } },
