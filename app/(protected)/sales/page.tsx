@@ -5,12 +5,14 @@ import Badge from "@/app/components/Badge";
 import { EventCalendar, UpcomingEvents } from "@/app/components/EventCalendar";
 import VisitAlerts from "@/app/components/VisitAlerts";
 import DeliveryAlerts from "@/app/components/DeliveryAlerts";
+import ActivityCalendar from "@/app/components/ActivityCalendar";
 
 export default function SalesPage() {
   const [tasks, setTasks]     = useState<any[]>([]);
   const [orders, setOrders]   = useState<any[]>([]);
   const [events, setEvents]   = useState<any[]>([]);
   const [target, setTarget]   = useState<any>(null);
+  const [me, setMe]           = useState<any>(null);
   const [report, setReport]   = useState({ summary: "", location: "" });
   const [reportMsg, setReportMsg] = useState({ text: "", ok: false });
   const [submittingReport, setSubmittingReport] = useState(false);
@@ -46,6 +48,9 @@ export default function SalesPage() {
     fetchOrders();
     fetchEvents();
     fetchTarget();
+    fetch("/api/auth/me", { credentials: "include" })
+      .then((r) => r.json())
+      .then((d) => setMe(d?.user ?? null));
   }, []);
 
   const completeTask = async (taskId: string) => {
@@ -365,6 +370,14 @@ export default function SalesPage() {
           </div>
         )}
       </div>
+
+      {me && (
+        <ActivityCalendar
+          userRole="SALES"
+          currentUserId={me.id}
+          salesTeam={[]}
+        />
+      )}
     </>
   );
 }

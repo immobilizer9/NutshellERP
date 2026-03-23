@@ -5,11 +5,13 @@ import Badge from "@/app/components/Badge";
 import { EventCalendar, UpcomingEvents } from "@/app/components/EventCalendar";
 import VisitAlerts from "@/app/components/VisitAlerts";
 import DeliveryAlerts from "@/app/components/DeliveryAlerts";
+import ActivityCalendar from "@/app/components/ActivityCalendar";
 
 export default function BDDashboard() {
   const [data, setData] = useState<any>(null);
   const [team, setTeam] = useState<any[]>([]);
   const [events, setEvents] = useState<any[]>([]);
+  const [me, setMe]     = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [taskForm, setTaskForm] = useState({ title: "", description: "", dueDate: "", assignedToId: "" });
   const [taskMsg, setTaskMsg] = useState({ text: "", ok: false });
@@ -19,14 +21,16 @@ export default function BDDashboard() {
     setLoading(true);
     const from = new Date(); from.setDate(1); from.setHours(0, 0, 0, 0);
     const to   = new Date(from.getFullYear(), from.getMonth() + 3, 0);
-    const [a, t, ev] = await Promise.all([
+    const [a, t, ev, meRes] = await Promise.all([
       fetch("/api/bd/analytics", { credentials: "include" }).then((r) => r.json()),
       fetch("/api/bd/team",      { credentials: "include" }).then((r) => r.json()),
       fetch(`/api/events?from=${from.toISOString()}&to=${to.toISOString()}`, { credentials: "include" }).then((r) => r.json()),
+      fetch("/api/auth/me",      { credentials: "include" }).then((r) => r.json()),
     ]);
     setData(a);
     setTeam(Array.isArray(t) ? t : []);
     setEvents(Array.isArray(ev) ? ev : []);
+    setMe(meRes?.user ?? null);
     setLoading(false);
   };
 
@@ -282,6 +286,14 @@ export default function BDDashboard() {
             })}
           </div>
         </div>
+      )}
+
+      {me && (
+        <ActivityCalendar
+          userRole="BD_HEAD"
+          currentUserId={me.id}
+          salesTeam={team.map((u: any) => ({ id: u.id, name: u.name }))}
+        />
       )}
     </>
   );
