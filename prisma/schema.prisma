@@ -42,6 +42,17 @@ model User {
   targets           Target[]
   competitorNotes   CompetitorNote[]  @relation("CompetitorNoteCreator")
   notifications     Notification[]
+
+  contentTopicsAssigned   ContentTopic[]           @relation("TopicAssignee")
+  contentTopicsCreated    ContentTopic[]           @relation("TopicCreator")
+  contentDocuments        ContentDocument[]        @relation("DocAuthor")
+  questionBanks           QuestionBank[]           @relation("QBCreator")
+  trainingMaterials       TrainingMaterial[]       @relation("MatCreator")
+  quizSessionsConducted   QuizSession[]            @relation("QuizConductor")
+  quizTrainerSessions     QuizSessionTrainer[]     @relation("QuizTrainer")
+  trainingConducted       TrainingSession[]        @relation("TrainingConductor")
+  trainingTrainerSessions TrainingSessionTrainer[] @relation("TrainingTrainer")
+  schoolActivities        SchoolActivity[]         @relation("ActivityCreator")
 }
 
 model Role {
@@ -116,6 +127,11 @@ model School {
   orders          Order[]
   events          SchoolEvent[]
   competitorNotes CompetitorNote[]
+
+  quizSessions          QuizSession[]
+  participatingQuizzes  QuizParticipatingSchool[]
+  trainingSessions      TrainingSession[]
+  activities            SchoolActivity[]
 
   createdAt DateTime @default(now())
 }
@@ -362,4 +378,237 @@ model Notification {
 
   isRead    Boolean  @default(false)
   createdAt DateTime @default(now())
+}
+
+model ContentTopic {
+  id          String   @id @default(uuid())
+  title       String
+  description String?
+  productType String   // ANNUAL | PAPERBACKS_PLAINS | PAPERBACKS_HILLS | ONLINE
+  classFrom   Int
+  classTo     Int
+  status      String   @default("OPEN")  // OPEN | IN_PROGRESS | COMPLETED
+  dueDate     DateTime?
+
+  assignedToId String
+  assignedById String
+  assignedTo   User   @relation("TopicAssignee", fields: [assignedToId], references: [id])
+  assignedBy   User   @relation("TopicCreator",  fields: [assignedById],  references: [id])
+
+  documents ContentDocument[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ContentDocument {
+  id      String @id @default(uuid())
+  title   String
+
+  topicId  String
+  topic    ContentTopic @relation(fields: [topicId], references: [id])
+
+  authorId String
+  author   User   @relation("DocAuthor", fields: [authorId], references: [id])
+
+  body    String  @default("")
+  status  String  @default("DRAFT")
+  // DRAFT | SUBMITTED | APPROVED | REJECTED | DESIGN_SENT | PUBLISHED
+
+  version      Int     @default(1)
+  adminComment String?
+
+  designedFileUrl  String?
+  designedFileName String?
+  sentToDesignAt   DateTime?
+  publishedAt      DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model QuestionBank {
+  id          String  @id @default(uuid())
+  title       String
+  description String?
+  subject     String  @default("GK")
+  classFrom   Int
+  classTo     Int
+  difficulty  String  @default("MEDIUM")  // EASY | MEDIUM | HARD
+  status      String  @default("DRAFT")   // DRAFT | PUBLISHED | ARCHIVED
+
+  createdById    String
+  createdBy      User       @relation("QBCreator", fields: [createdById], references: [id])
+  organizationId String
+
+  questions Question[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Question {
+  id            String  @id @default(uuid())
+  bankId        String
+  bank          QuestionBank @relation(fields: [bankId], references: [id])
+  text          String
+  optionA       String
+  optionB       String
+  optionC       String
+  optionD       String
+  correctOption String  // A | B | C | D
+  explanation   String?
+  classLevel    Int?
+  difficulty    String  @default("MEDIUM")
+  createdAt     DateTime @default(now())
+}
+
+model TrainingMaterial {
+  id          String  @id @default(uuid())
+  title       String
+  description String?
+  type        String  // PDF | SLIDES | VIDEO | DOCUMENT
+  url         String?
+  topic       String  // BOOK_USAGE | QUIZ_METHODOLOGY | BOTH
+
+  createdById    String
+  createdBy      User   @relation("MatCreator", fields: [createdById], references: [id])
+  organizationId String
+
+  trainingSessions TrainingSession[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model QuizSession {
+  id          String   @id @default(uuid())
+  title       String
+  format      String   // IN_SCHOOL | INTER_SCHOOL
+  status      String   @default("SCHEDULED")  // SCHEDULED | COMPLETED | CANCELLED
+  scheduledDate  DateTime
+  completedDate  DateTime?
+
+  schoolId       String?
+  school         School?  @relation(fields: [schoolId], references: [id])
+
+  conductedById  String?
+  conductedBy    User?    @relation("QuizConductor", fields: [conductedById], references: [id])
+
+  organizationId     String
+  participatingStudents Int?
+  booksPitched       Boolean @default(false)
+  booksPitchedNotes  String?
+  overallNotes       String?
+
+  trainers            QuizSessionTrainer[]
+  classResults        QuizClassResult[]
+  topPerformers       QuizTopPerformer[]
+  participatingSchools QuizParticipatingSchool[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model QuizSessionTrainer {
+  id           String      @id @default(uuid())
+  quizSessionId String
+  quizSession  QuizSession @relation(fields: [quizSessionId], references: [id])
+  userId       String
+  user         User        @relation("QuizTrainer", fields: [userId], references: [id])
+
+  @@unique([quizSessionId, userId])
+}
+
+model QuizParticipatingSchool {
+  id           String      @id @default(uuid())
+  quizSessionId String
+  quizSession  QuizSession @relation(fields: [quizSessionId], references: [id])
+  schoolId     String
+  school       School      @relation(fields: [schoolId], references: [id])
+  rank         Int?
+  score        Float?
+}
+
+model QuizClassResult {
+  id           String      @id @default(uuid())
+  quizSessionId String
+  quizSession  QuizSession @relation(fields: [quizSessionId], references: [id])
+  className        String
+  studentsPresent  Int
+  averageScore     Float?
+  topScore         Float?
+  teacherFeedback  String?
+  createdAt        DateTime @default(now())
+}
+
+model QuizTopPerformer {
+  id           String      @id @default(uuid())
+  quizSessionId String
+  quizSession  QuizSession @relation(fields: [quizSessionId], references: [id])
+  studentName  String
+  className    String
+  score        Float?
+  rank         Int?
+  schoolId     String?
+}
+
+model TrainingSession {
+  id    String @id @default(uuid())
+  title String
+  topic String  // BOOK_USAGE | QUIZ_METHODOLOGY | BOTH
+  status String @default("SCHEDULED")  // SCHEDULED | COMPLETED | CANCELLED
+  scheduledDate  DateTime
+  completedDate  DateTime?
+
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id])
+
+  conductedById String?
+  conductedBy   User?   @relation("TrainingConductor", fields: [conductedById], references: [id])
+
+  organizationId   String
+  teachersAttended Int?
+  durationMinutes  Int?
+  overallNotes     String?
+  teacherFeedback  String?
+  followUpRequired Boolean @default(false)
+  followUpNotes    String?
+
+  trainers  TrainingSessionTrainer[]
+  materials TrainingMaterial[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model TrainingSessionTrainer {
+  id                String          @id @default(uuid())
+  trainingSessionId String
+  trainingSession   TrainingSession @relation(fields: [trainingSessionId], references: [id])
+  userId            String
+  user              User            @relation("TrainingTrainer", fields: [userId], references: [id])
+
+  @@unique([trainingSessionId, userId])
+}
+
+model SchoolActivity {
+  id            String   @id @default(uuid())
+  type          String   // VISIT | QUIZ | TEACHER_TRAINING
+  status        String   @default("SCHEDULED")  // SCHEDULED | COMPLETED | CANCELLED
+  scheduledDate DateTime
+  completedDate DateTime?
+  notes         String?
+  location      String?
+
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id])
+
+  userId String
+  user   User   @relation("ActivityCreator", fields: [userId], references: [id])
+
+  organizationId String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
