@@ -26,6 +26,12 @@ export default function OrderDetailsPage() {
   const [returnMsg, setReturnMsg]             = useState({ text: "", ok: false });
   const [submittingReturn, setSubmittingReturn] = useState(false);
 
+  // Edit order state
+  const [editOpen, setEditOpen]     = useState(false);
+  const [editItems, setEditItems]   = useState<any[]>([]);
+  const [editMsg, setEditMsg]       = useState({ text: "", ok: false });
+  const [submittingEdit, setSubmittingEdit] = useState(false);
+
   // Payment / delivery state
   const [updatingStatus, setUpdatingStatus] = useState(false);
 
@@ -73,6 +79,32 @@ export default function OrderDetailsPage() {
     setSubmittingReturn(false);
   };
 
+  const openEdit = () => {
+    setEditItems(order.items?.map((i: any) => ({ ...i })) ?? []);
+    setEditMsg({ text: "", ok: false });
+    setEditOpen(true);
+  };
+
+  const submitEdit = async () => {
+    setSubmittingEdit(true);
+    setEditMsg({ text: "", ok: false });
+    const res = await fetch(`/api/orders/${id}/edit`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ items: editItems.map((i) => ({ id: i.id, quantity: Number(i.quantity), unitPrice: Number(i.unitPrice) })) }),
+    });
+    const data = await res.json();
+    if (data.error) {
+      setEditMsg({ text: data.error, ok: false });
+    } else {
+      setEditMsg({ text: "Order updated.", ok: true });
+      setEditOpen(false);
+      fetchOrder();
+    }
+    setSubmittingEdit(false);
+  };
+
   if (loading) return <div style={{ color: "var(--text-muted)", padding: "40px 0" }}>Loading...</div>;
   if (error)   return <div className="alert alert-error">{error}</div>;
 
@@ -91,6 +123,11 @@ export default function OrderDetailsPage() {
           <Badge status={order.type} />
           <Badge status={order.productType} />
           <Badge status={order.status} />
+          {order.status === "PENDING" && me?.id === order.createdById && (
+            <button className="btn btn-secondary" style={{ fontSize: 12 }} onClick={openEdit}>
+              Edit Order
+            </button>
+          )}
           {order.pdfUrl && (
             <a href={order.pdfUrl} target="_blank" rel="noopener noreferrer"
               className="btn btn-secondary"
@@ -103,6 +140,21 @@ export default function OrderDetailsPage() {
           )}
         </div>
       </div>
+
+      {/* ── Rejection Reason Banner ── */}
+      {order.status === "REJECTED" && order.rejectionReason && (
+        <div style={{
+          background: "var(--red-bg, #fff5f5)", border: "1px solid var(--red-border, #fca5a5)",
+          borderRadius: "var(--radius-lg)", padding: "12px 16px", marginBottom: 20,
+          display: "flex", gap: 10, alignItems: "flex-start",
+        }}>
+          <span style={{ color: "var(--red)", fontSize: 18, lineHeight: 1 }}>✕</span>
+          <div>
+            <p style={{ fontWeight: 600, color: "var(--red)", margin: "0 0 3px", fontSize: 13.5 }}>Order Rejected</p>
+            <p style={{ color: "var(--text-secondary)", margin: 0, fontSize: 13 }}>{order.rejectionReason}</p>
+          </div>
+        </div>
+      )}
 
       {/* ── Two-column layout ── */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: 16, alignItems: "start" }}>
@@ -439,6 +491,71 @@ export default function OrderDetailsPage() {
 
         </div>
       </div>
+
+      {/* ── Edit Order Modal ── */}
+      {editOpen && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50, padding: 24 }}
+          onClick={(e) => { if (e.target === e.currentTarget) setEditOpen(false); }}>
+          <div className="fade-in" style={{ background: "var(--surface)", borderRadius: "var(--radius-xl)", border: "1px solid var(--border)", padding: 28, width: "100%", maxWidth: 560, maxHeight: "90vh", overflowY: "auto", boxShadow: "0 24px 48px rgba(0,0,0,0.18)" }}>
+            <h2 style={{ marginBottom: 6 }}>Edit Order</h2>
+            <p style={{ color: "var(--text-muted)", fontSize: 13, marginBottom: 18 }}>Update quantities or agreed prices before approval.</p>
+
+            <div className="table-wrap" style={{ marginBottom: 16 }}>
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Class</th>
+                    <th style={{ textAlign: "center" }}>Qty</th>
+                    <th style={{ textAlign: "right" }}>Agreed Price (₹)</th>
+                    <th style={{ textAlign: "right" }}>Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {editItems.map((item, idx) => (
+                    <tr key={item.id}>
+                      <td style={{ fontWeight: 500 }}>{item.className}</td>
+                      <td style={{ textAlign: "center" }}>
+                        <input type="number" min={0} className="input" style={{ width: 70, textAlign: "center", padding: "4px 8px" }}
+                          value={item.quantity}
+                          onChange={(e) => setEditItems((prev) => prev.map((x, i) => i === idx ? { ...x, quantity: e.target.value } : x))} />
+                      </td>
+                      <td style={{ textAlign: "right" }}>
+                        <input type="number" min={0} step="0.01" className="input" style={{ width: 100, textAlign: "right", padding: "4px 8px" }}
+                          value={item.unitPrice}
+                          onChange={(e) => setEditItems((prev) => prev.map((x, i) => i === idx ? { ...x, unitPrice: e.target.value } : x))} />
+                      </td>
+                      <td style={{ fontFamily: "monospace", textAlign: "right", fontWeight: 600 }}>
+                        ₹{(Number(item.quantity) * Number(item.unitPrice)).toLocaleString()}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr style={{ borderTop: "2px solid var(--border)" }}>
+                    <td colSpan={3} style={{ padding: "10px 16px", textAlign: "right", fontWeight: 600, color: "var(--text-secondary)" }}>New Gross</td>
+                    <td style={{ padding: "10px 16px", fontFamily: "monospace", fontWeight: 700, textAlign: "right", color: "var(--accent)" }}>
+                      ₹{editItems.reduce((s, i) => s + Number(i.quantity) * Number(i.unitPrice), 0).toLocaleString()}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+
+            {editMsg.text && (
+              <div className={`alert ${editMsg.ok ? "alert-success" : "alert-error"}`} style={{ marginBottom: 12 }}>
+                {editMsg.text}
+              </div>
+            )}
+
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <button className="btn btn-secondary" onClick={() => setEditOpen(false)}>Cancel</button>
+              <button className="btn btn-primary" disabled={submittingEdit} onClick={submitEdit}>
+                {submittingEdit ? "Saving..." : "Save Changes"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

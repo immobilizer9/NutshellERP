@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Badge from "@/app/components/Badge";
 import { EventCalendar, UpcomingEvents } from "@/app/components/EventCalendar";
+import ExportSheetsButton from "@/app/components/ExportSheetsButton";
 
 export default function AdminDashboard() {
   const [data, setData] = useState<any>(null);
@@ -43,9 +44,12 @@ export default function AdminDashboard() {
 
   return (
     <>
-      <div className="page-header">
-        <h1>Admin Overview</h1>
-        <p>Organization-wide performance and team management</p>
+      <div className="page-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+        <div>
+          <h1>Admin Overview</h1>
+          <p>Organization-wide performance and team management</p>
+        </div>
+        <ExportSheetsButton />
       </div>
 
       {analyticsError && (

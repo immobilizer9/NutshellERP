@@ -72,7 +72,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const { userId, month, year, revenueTarget, ordersTarget } = await req.json();
+    const { userId, month, year, revenueTarget, ordersTarget, incentivePercent } = await req.json();
 
     if (!userId || !month || !year) {
       return NextResponse.json({ error: "userId, month, year are required" }, { status: 400 });
@@ -96,16 +96,18 @@ export async function POST(req: Request) {
     const target = await (prisma as any).target.upsert({
       where: { userId_month_year: { userId, month: parseInt(month), year: parseInt(year) } },
       update: {
-        revenueTarget: parseFloat(revenueTarget) || 0,
-        ordersTarget:  parseInt(ordersTarget)    || 0,
+        ...(revenueTarget  !== undefined && { revenueTarget:   parseFloat(revenueTarget) || 0 }),
+        ...(ordersTarget   !== undefined && { ordersTarget:    parseInt(ordersTarget)    || 0 }),
+        ...(incentivePercent !== undefined && { incentivePercent: parseFloat(incentivePercent) || 0 }),
       },
       create: {
         userId,
-        organizationId: targetUser.organizationId,
-        month:  parseInt(month),
-        year:   parseInt(year),
-        revenueTarget: parseFloat(revenueTarget) || 0,
-        ordersTarget:  parseInt(ordersTarget)    || 0,
+        organizationId:  targetUser.organizationId,
+        month:           parseInt(month),
+        year:            parseInt(year),
+        revenueTarget:   parseFloat(revenueTarget)   || 0,
+        ordersTarget:    parseInt(ordersTarget)      || 0,
+        incentivePercent: parseFloat(incentivePercent) || 0,
       },
     }) as any;
 

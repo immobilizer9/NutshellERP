@@ -1,0 +1,10 @@
+{
+  "visitAlertDays": 30,
+  "deliveryAlertDays": 7,
+  "emailOnOrderApproval": true,
+  "emailOnOrderRejection": true,
+  "emailOnTaskAssignment": true,
+  "emailOnOverdueTask": false,
+  "defaultPipelineStage": "LEAD",
+  "defaultPaymentStatus": "UNPAID"
+}

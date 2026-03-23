@@ -41,6 +41,7 @@ model User {
   createdEvents     SchoolEvent[]     @relation("EventCreator")
   targets           Target[]
   competitorNotes   CompetitorNote[]  @relation("CompetitorNoteCreator")
+  notifications     Notification[]
 }
 
 model Role {
@@ -168,6 +169,9 @@ model Order {
   // Generated PDF download URL
   pdfUrl String?
 
+  // Rejection reason (set when status → REJECTED)
+  rejectionReason String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -286,6 +290,7 @@ model Target {
 
   revenueTarget  Float  @default(0)
   ordersTarget   Int    @default(0)
+  incentivePercent Float @default(0)   // % of achieved revenue paid as incentive
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -339,4 +344,22 @@ enum PipelineStage {
   NEGOTIATION
   CLOSED_WON
   CLOSED_LOST
+}
+
+model Notification {
+  id             String   @id @default(uuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id])
+  organizationId String
+
+  type       String
+  // Values: ORDER_APPROVED | ORDER_REJECTED | TASK_ASSIGNED | OVERDUE_TASK
+
+  title      String
+  message    String
+  entityType String?  // "Order" | "Task" | "School"
+  entityId   String?
+
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
 }
