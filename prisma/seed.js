@@ -68,7 +68,7 @@ async function main() {
     "TARGETS", "DAILY_REPORTS", "TASKS",
     "CONTENT_CREATE", "CONTENT_ASSIGN", "CONTENT_REVIEW",
     "QUIZ_SESSIONS", "TRAINING_SESSIONS", "EXPORTS",
-    "DESIGN_WORK", "EVENTS", "RECEIVABLES", "SETTINGS",
+    "DESIGN_WORK", "EVENTS", "RECEIVABLES", "SETTINGS", "SCHOOL_IMPORT",
   ];
 
   const permissions = {};
@@ -79,9 +79,10 @@ async function main() {
 
   // ─── Role → Module assignments ───────────────────────────────────
   const ROLE_MODULES = {
-    ADMIN:        ["USER_MANAGEMENT", "AUDIT_LOG", "EXPORTS", "SETTINGS", "CONTENT_ASSIGN", "CONTENT_REVIEW",
-                   "ANALYTICS", "ORDERS", "PIPELINE", "SCHOOLS", "TARGETS", "TEAM_MANAGEMENT",
-                   "QUIZ_SESSIONS", "TRAINING_SESSIONS", "EVENTS", "RECEIVABLES"],
+    ADMIN:        ["USER_MANAGEMENT", "AUDIT_LOG", "EXPORTS", "SETTINGS", "SCHOOL_IMPORT",
+                   "CONTENT_ASSIGN", "CONTENT_REVIEW", "ANALYTICS", "ORDERS", "PIPELINE",
+                   "SCHOOLS", "TARGETS", "TEAM_MANAGEMENT", "QUIZ_SESSIONS", "TRAINING_SESSIONS",
+                   "EVENTS", "RECEIVABLES"],
     BD_HEAD:      ["TEAM_MANAGEMENT", "ORDERS", "PIPELINE", "SCHOOLS", "ANALYTICS",
                    "TASKS", "DAILY_REPORTS", "TARGETS", "EVENTS", "RECEIVABLES"],
     SALES:        ["ORDERS", "PIPELINE", "ANALYTICS", "TASKS", "DAILY_REPORTS", "EVENTS"],

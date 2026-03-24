@@ -48,6 +48,7 @@ const MODULE_NAV: Record<string, { href: string; label: string; section: string;
   DESIGN_WORK:       { href: "/design",                    label: "Design Tasks",      section: "Design",   icon: ICONS.exports    },
   EVENTS:            { href: "/events",                    label: "Event Manager",     section: "Sales",    icon: ICONS.tasks      },
   RECEIVABLES:       { href: "/orders/receivables",         label: "Receivables",        section: "Sales",    icon: ICONS.orders     },
+  SCHOOL_IMPORT:     { href: "/admin/schools/import",         label: "Import Schools",     section: "Admin",    icon: ICONS.exports    },
   SETTINGS:          { href: "/settings",                    label: "Settings",           section: "Admin",    icon: ICONS.audit      },
 };
 
