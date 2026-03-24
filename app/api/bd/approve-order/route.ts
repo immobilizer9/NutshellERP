@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyToken, getTokenFromRequest } from "@/lib/auth";
+import { sendOrderEmail } from "@/lib/sendOrderEmail";
 
 export async function POST(req: Request) {
   try {
@@ -19,7 +20,8 @@ export async function POST(req: Request) {
       where: { id: orderId },
       include: {
         school:    { select: { name: true } },
-        createdBy: { select: { id: true, managerId: true, organizationId: true } },
+        createdBy: { select: { id: true, name: true, email: true, phone: true, managerId: true, organizationId: true } },
+        items:     { select: { className: true, quantity: true, unitPrice: true, total: true } },
       },
     });
 
@@ -54,6 +56,25 @@ export async function POST(req: Request) {
         entityId:       orderId,
       },
     });
+
+    // Send approval email to school (non-blocking)
+    if (order.schoolEmail) {
+      sendOrderEmail({
+        to:            order.schoolEmail,
+        schoolName:    order.school.name,
+        orderId:       order.id,
+        productType:   order.productType,
+        grossAmount:   order.grossAmount,
+        salesRepName:  order.createdBy.name,
+        salesRepEmail: order.createdBy.email,
+        salesRepPhone: order.createdBy.phone ?? undefined,
+        vendorName:    order.vendorName   ?? undefined,
+        vendorPhone:   order.vendorPhone  ?? undefined,
+        vendorEmail:   order.vendorEmail  ?? undefined,
+        vendorAddress: order.vendorAddress ?? undefined,
+        items:         order.items,
+      }).catch((err) => console.error("Approval email failed:", err));
+    }
 
     return NextResponse.json(updated);
   } catch (error) {

@@ -39,7 +39,35 @@ export default function SchoolDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [school, setSchool] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<"orders" | "visits" | "events">("orders");
+  const [tab, setTab] = useState<"orders" | "visits" | "events" | "competitors">("orders");
+  const [competitors, setCompetitors] = useState<any[]>([]);
+  const [compForm, setCompForm] = useState({ competitor: "", notes: "", isActive: true });
+  const [compSaving, setCompSaving] = useState(false);
+
+  const fetchCompetitors = () =>
+    fetch(`/api/competitors?schoolId=${id}`, { credentials: "include" })
+      .then((r) => r.json())
+      .then((d) => { if (Array.isArray(d)) setCompetitors(d); });
+
+  const saveCompetitor = async () => {
+    if (!compForm.competitor.trim()) return;
+    setCompSaving(true);
+    await fetch("/api/competitors", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ schoolId: id, ...compForm }),
+    });
+    setCompForm({ competitor: "", notes: "", isActive: true });
+    await fetchCompetitors();
+    setCompSaving(false);
+  };
+
+  const deleteCompetitor = async (noteId: string) => {
+    if (!confirm("Delete this competitor note?")) return;
+    await fetch(`/api/competitors?id=${noteId}`, { method: "DELETE", credentials: "include" });
+    await fetchCompetitors();
+  };
 
   useEffect(() => {
     if (!id) return;
@@ -49,6 +77,7 @@ export default function SchoolDetailPage() {
         setSchool(d.error ? null : d);
         setLoading(false);
       });
+    fetchCompetitors();
   }, [id]);
 
   if (loading) return <p style={{ color: "var(--text-muted)", padding: "40px 0" }}>Loading...</p>;
@@ -99,9 +128,10 @@ export default function SchoolDetailPage() {
 
       {/* ── Tabs ── */}
       <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-        <TabButton tab="orders" label={`Orders (${school.orders.length})`} />
-        <TabButton tab="visits" label={`Visits (${school.visits.length})`} />
-        <TabButton tab="events" label={`Events (${school.events.length})`} />
+        <TabButton tab="orders"      label={`Orders (${school.orders.length})`} />
+        <TabButton tab="visits"      label={`Visits (${school.visits.length})`} />
+        <TabButton tab="events"      label={`Events (${school.events.length})`} />
+        <TabButton tab="competitors" label={`Competitors (${competitors.length})`} />
       </div>
 
       {/* ── Orders Tab ── */}
@@ -239,6 +269,69 @@ export default function SchoolDetailPage() {
               </tbody>
             </table>
           )}
+        </div>
+      )}
+      {/* ── Competitors Tab ── */}
+      {tab === "competitors" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <div className="card">
+            <h2 style={{ marginBottom: 14 }}>Log Competitor</h2>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr auto", gap: 10, alignItems: "end" }}>
+              <div>
+                <label className="form-label">Competitor Name *</label>
+                <input className="input" placeholder="e.g. Oxford, S.Chand" value={compForm.competitor}
+                  onChange={(e) => setCompForm({ ...compForm, competitor: e.target.value })} />
+              </div>
+              <div>
+                <label className="form-label">Notes</label>
+                <input className="input" placeholder="What products? Price point? Any intel?" value={compForm.notes}
+                  onChange={(e) => setCompForm({ ...compForm, notes: e.target.value })} />
+              </div>
+              <button className="btn btn-primary" onClick={saveCompetitor} disabled={compSaving || !compForm.competitor.trim()}>
+                {compSaving ? "Saving…" : "Add"}
+              </button>
+            </div>
+          </div>
+
+          <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+            {competitors.length === 0 ? (
+              <div className="empty-state" style={{ padding: 32 }}><p>No competitor notes yet</p></div>
+            ) : (
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Competitor</th>
+                    <th>Notes</th>
+                    <th>Active?</th>
+                    <th>Logged By</th>
+                    <th>Date</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {competitors.map((c: any) => (
+                    <tr key={c.id}>
+                      <td style={{ fontWeight: 500 }}>{c.competitor}</td>
+                      <td style={{ fontSize: 12.5, color: "var(--text-secondary)", maxWidth: 260 }}>{c.notes ?? "—"}</td>
+                      <td>
+                        <span className={`badge ${c.isActive ? "badge-green" : "badge-gray"}`} style={{ fontSize: 11 }}>
+                          {c.isActive ? "Active" : "Inactive"}
+                        </span>
+                      </td>
+                      <td style={{ fontSize: 12, color: "var(--text-muted)" }}>{c.createdBy?.name ?? "—"}</td>
+                      <td style={{ fontSize: 12, color: "var(--text-muted)" }}>{new Date(c.createdAt).toLocaleDateString()}</td>
+                      <td>
+                        <button className="btn btn-ghost" style={{ fontSize: 11, color: "var(--red)" }}
+                          onClick={() => deleteCompetitor(c.id)}>
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
         </div>
       )}
     </>

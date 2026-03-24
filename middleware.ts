@@ -118,5 +118,7 @@ export const config = {
     "/events/:path*",
     "/settings/:path*",
     "/settings",
+    "/profile/:path*",
+    "/profile",
   ],
 };

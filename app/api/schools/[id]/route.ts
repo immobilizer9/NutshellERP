@@ -37,6 +37,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
             createdBy: { select: { id: true, name: true } },
           },
         },
+        competitorNotes: {
+          orderBy: { createdAt: "desc" },
+          include: {
+            createdBy: { select: { id: true, name: true } },
+          },
+        },
       },
     });
 

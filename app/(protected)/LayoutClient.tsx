@@ -225,6 +225,10 @@ export default function LayoutClient({ children }: { children: React.ReactNode }
               </span>
             )}
           </Link>
+          <Link href="/profile" className="sidebar-link" style={{ fontSize: 13 }}>
+            <NavIcon d={ICONS.users} />
+            My Profile
+          </Link>
           <button
             onClick={async () => {
               await fetch("/api/auth/logout", { method: "POST", credentials: "include" });

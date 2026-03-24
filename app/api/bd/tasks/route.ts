@@ -61,6 +61,19 @@ export async function POST(req: Request) {
       },
     });
 
+    // ✅ Create in-app notification
+    await (prisma as any).notification.create({
+      data: {
+        userId:         assignedToId,
+        organizationId: decoded.organizationId,
+        type:           "TASK_ASSIGNED",
+        title:          "New Task Assigned",
+        message:        `"${title}" — due ${new Date(dueDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}`,
+        entityType:     "Task",
+        entityId:       task.id,
+      },
+    });
+
     // ✅ Send email notification to the sales rep (non-blocking)
     if (salesUser.email) {
       sendTaskEmail({
