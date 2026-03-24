@@ -1,26 +1,28 @@
 import { NextResponse } from "next/server";
 import { verifyToken, getTokenFromRequest } from "@/lib/auth";
-import ExcelJS from "exceljs";
+import { Workbook } from "exceljs";
 
 const GREEN  = { type: "pattern" as const, pattern: "solid" as const, fgColor: { argb: "FF22C55E" } };
 const YELLOW = { type: "pattern" as const, pattern: "solid" as const, fgColor: { argb: "FFEAB308" } };
 const WHITE  = { type: "pattern" as const, pattern: "solid" as const, fgColor: { argb: "FFFFFFFF" } };
 
 const COLUMNS = [
-  { header: "name",          label: "School Name",     required: true  },
-  { header: "address",       label: "Address",         required: true  },
-  { header: "city",          label: "City",            required: true  },
-  { header: "state",         label: "State",           required: true  },
-  { header: "contactPerson", label: "Contact Person",  required: false },
-  { header: "contactPhone",  label: "Contact Phone",   required: false },
-  { header: "pipelineStage", label: "Pipeline Stage",  required: false },
-  { header: "targetProduct", label: "Target Product",  required: false },
-  { header: "targetServices",label: "Target Services", required: false },
+  { key: "name",           label: "School Name",     required: true  },
+  { key: "address",        label: "Address",         required: true  },
+  { key: "city",           label: "City",            required: true  },
+  { key: "state",          label: "State",           required: true  },
+  { key: "contactPerson",  label: "Contact Person",  required: false },
+  { key: "contactPhone",   label: "Contact Phone",   required: false },
+  { key: "pipelineStage",  label: "Pipeline Stage",  required: false },
+  { key: "targetProduct",  label: "Target Product",  required: false },
+  { key: "targetServices", label: "Target Services", required: false },
 ];
 
+const COL_WIDTHS = [32, 28, 18, 18, 22, 18, 22, 24, 24];
+
 const EXAMPLE_ROWS = [
-  ["St. Xavier's School", "12 Park Street",  "Kolkata",  "West Bengal", "Fr. John",    "9800000001", "LEAD",      "Annual",               "Quiz"],
-  ["Springdale Academy",  "45 Hill Road",    "Siliguri", "West Bengal", "Mrs. Sharma", "9800000002", "VISITED",   "Nutshell Paperbacks",  "Training"],
+  ["St. Xavier's School", "12 Park Street",  "Kolkata",  "West Bengal", "Fr. John",    "9800000001", "LEAD",    "Annual",              "Quiz"],
+  ["Springdale Academy",  "45 Hill Road",    "Siliguri", "West Bengal", "Mrs. Sharma", "9800000002", "VISITED", "Nutshell Paperbacks", "Training"],
 ];
 
 export async function GET(req: Request) {
@@ -32,138 +34,122 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const wb = new ExcelJS.Workbook();
+    const wb = new Workbook();
     wb.creator = "Nutshell ERP";
+    wb.created = new Date();
 
-    // ── Main data sheet ─────────────────────────────────────────────
+    // ── Main sheet ────────────────────────────────────────────────────
     const ws = wb.addWorksheet("Schools", {
       views: [{ state: "frozen", ySplit: 2 }],
     });
 
-    // Row 1: human-readable labels (merged look via fill)
+    // Row 1 — Human-readable labels
     const labelRow = ws.addRow(COLUMNS.map((c) => c.label));
-    labelRow.eachCell((cell, col) => {
-      const colDef = COLUMNS[col - 1];
-      cell.fill    = colDef.required ? GREEN : YELLOW;
-      cell.font    = { bold: true, color: { argb: "FF111827" }, size: 11 };
-      cell.alignment = { horizontal: "center", vertical: "middle" };
-      cell.border  = {
-        bottom: { style: "thin", color: { argb: "FF6B7280" } },
-      };
-    });
     labelRow.height = 22;
-
-    // Row 2: machine keys (what the API expects)
-    const keyRow = ws.addRow(COLUMNS.map((c) => c.header));
-    keyRow.eachCell((cell, col) => {
-      const colDef = COLUMNS[col - 1];
-      cell.fill  = colDef.required ? GREEN : YELLOW;
-      cell.font  = { italic: true, color: { argb: "FF374151" }, size: 9 };
-      cell.alignment = { horizontal: "center", vertical: "middle" };
-      cell.border = {
-        bottom: { style: "medium", color: { argb: "FF9CA3AF" } },
-      };
+    labelRow.eachCell((cell, col) => {
+      const required = COLUMNS[col - 1].required;
+      cell.fill      = required ? GREEN : YELLOW;
+      cell.font      = { bold: true, color: { argb: "FF111827" }, size: 11 };
+      cell.alignment = { horizontal: "center", vertical: "middle", wrapText: false };
+      cell.border    = { bottom: { style: "thin", color: { argb: "FF6B7280" } } };
     });
+
+    // Row 2 — Machine keys (what the CSV parser reads)
+    const keyRow = ws.addRow(COLUMNS.map((c) => c.key));
     keyRow.height = 16;
+    keyRow.eachCell((cell, col) => {
+      const required = COLUMNS[col - 1].required;
+      cell.fill      = required ? GREEN : YELLOW;
+      cell.font      = { italic: true, color: { argb: "FF374151" }, size: 9 };
+      cell.alignment = { horizontal: "center", vertical: "middle" };
+      cell.border    = { bottom: { style: "medium", color: { argb: "FF374151" } } };
+    });
 
     // Example data rows
-    for (const row of EXAMPLE_ROWS) {
-      const r = ws.addRow(row);
+    for (const rowData of EXAMPLE_ROWS) {
+      const r = ws.addRow(rowData);
       r.eachCell((cell) => {
         cell.fill = WHITE;
-        cell.font = { color: { argb: "FF6B7280" }, italic: true };
+        cell.font = { color: { argb: "FF6B7280" }, italic: true, size: 10 };
       });
     }
 
     // Column widths
-    const widths = [32, 28, 18, 18, 22, 18, 20, 24, 24];
     COLUMNS.forEach((_, i) => {
-      ws.getColumn(i + 1).width = widths[i] ?? 20;
+      ws.getColumn(i + 1).width = COL_WIDTHS[i] ?? 20;
     });
 
-    // ── Data validation dropdowns (rows 3–1002) ──────────────────────
-    const PIPELINE_STAGES = "LEAD,CONTACTED,VISITED,PROPOSAL_SENT,NEGOTIATION,CLOSED_WON,CLOSED_LOST";
-    const pipelineColLetter = colLetter(7); // pipelineStage = col 7
-    const productColLetter  = colLetter(8); // targetProduct  = col 8
-    const serviceColLetter  = colLetter(9); // targetServices = col 9
+    // Dropdowns on rows 3–202 (columns 7, 8, 9)
+    const PIPELINE = '"LEAD,CONTACTED,VISITED,PROPOSAL_SENT,NEGOTIATION,CLOSED_WON,CLOSED_LOST"';
+    const PRODUCTS = '"Annual,Nutshell Paperbacks"';
+    const SERVICES = '"Quiz,Training,Classroom Program"';
 
-    for (let row = 3; row <= 1002; row++) {
-      ws.getCell(`${pipelineColLetter}${row}`).dataValidation = {
-        type: "list",
-        allowBlank: true,
-        formulae: [`"${PIPELINE_STAGES}"`],
-        showErrorMessage: true,
-        errorTitle: "Invalid stage",
-        error: "Choose from the list",
+    for (let row = 3; row <= 202; row++) {
+      ws.getCell(`G${row}`).dataValidation = {
+        type: "list", allowBlank: true, formulae: [PIPELINE],
+        showErrorMessage: true, errorTitle: "Invalid stage", error: "Choose from the dropdown list",
       };
-      ws.getCell(`${productColLetter}${row}`).dataValidation = {
-        type: "list",
-        allowBlank: true,
-        formulae: ['"Annual,Nutshell Paperbacks"'],
-        showErrorMessage: true,
-        errorTitle: "Invalid product",
-        error: "Choose Annual or Nutshell Paperbacks",
+      ws.getCell(`H${row}`).dataValidation = {
+        type: "list", allowBlank: true, formulae: [PRODUCTS],
+        showErrorMessage: true, errorTitle: "Invalid product", error: "Choose Annual or Nutshell Paperbacks",
       };
-      ws.getCell(`${serviceColLetter}${row}`).dataValidation = {
-        type: "list",
-        allowBlank: true,
-        formulae: ['"Quiz,Training,Classroom Program"'],
-        showErrorMessage: true,
-        errorTitle: "Invalid service",
-        error: "Choose from the list",
+      ws.getCell(`I${row}`).dataValidation = {
+        type: "list", allowBlank: true, formulae: [SERVICES],
+        showErrorMessage: true, errorTitle: "Invalid service", error: "Choose from the dropdown list",
       };
     }
 
-    // ── Legend sheet ──────────────────────────────────────────────────
-    const legend = wb.addWorksheet("Instructions");
-    legend.getColumn(1).width = 24;
-    legend.getColumn(2).width = 60;
+    // ── Instructions sheet ────────────────────────────────────────────
+    const info = wb.addWorksheet("Instructions");
+    info.getColumn(1).width = 22;
+    info.getColumn(2).width = 58;
 
-    const addLegendRow = (label: string, value: string, fill?: typeof GREEN) => {
-      const r = legend.addRow([label, value]);
-      if (fill) r.getCell(1).fill = fill;
-      r.getCell(1).font = { bold: true };
+    const addRow = (a: string, b: string, bold = false, fill?: typeof GREEN) => {
+      const r = info.addRow([a, b]);
       r.height = 18;
+      if (bold) { r.getCell(1).font = { bold: true }; r.getCell(2).font = { bold: true }; }
+      if (fill) r.getCell(1).fill = fill;
     };
 
-    legend.addRow(["SCHOOL IMPORT INSTRUCTIONS", ""]).font = { bold: true, size: 13 };
-    legend.addRow([]);
-    addLegendRow("Green columns",  "Required — must be filled in every row", GREEN);
-    addLegendRow("Yellow columns", "Optional — leave blank if unknown",       YELLOW);
-    legend.addRow([]);
-    legend.addRow(["FIELD NOTES", ""]).getCell(1).font = { bold: true };
-    legend.addRow(["name",          "Full official name of the school"]);
-    legend.addRow(["address",       "Street address"]);
-    legend.addRow(["city",          "e.g. Kolkata, Siliguri, Delhi"]);
-    legend.addRow(["state",         "e.g. West Bengal"]);
-    legend.addRow(["contactPerson", "Principal or admin name"]);
-    legend.addRow(["contactPhone",  "10-digit mobile number"]);
-    legend.addRow(["pipelineStage", "Dropdown — defaults to LEAD if blank"]);
-    legend.addRow(["targetProduct", "Dropdown — Annual or Nutshell Paperbacks"]);
-    legend.addRow(["targetServices","Dropdown — Quiz, Training, or Classroom Program"]);
-    legend.addRow([]);
-    legend.addRow(["NOTE", "Delete the two example rows before uploading. Keep the header rows."]);
+    addRow("SCHOOL IMPORT TEMPLATE", "", true);
+    info.addRow([]);
+    addRow("Colour guide", "", true);
+    addRow("Green header",  "Required column — must be filled for every row", false, GREEN);
+    addRow("Yellow header", "Optional column — leave blank if not known",     false, YELLOW);
+    info.addRow([]);
+    addRow("Instructions", "", true);
+    addRow("1.", "Delete the two grey example rows before uploading");
+    addRow("2.", "Keep both header rows (row 1 and row 2) — do not delete them");
+    addRow("3.", "For dropdown columns, click the cell to see the list of options");
+    addRow("4.", "Save the file as CSV before uploading (File → Save As → CSV)");
+    info.addRow([]);
+    addRow("Pipeline Stage values", "", true);
+    for (const s of ["LEAD","CONTACTED","VISITED","PROPOSAL_SENT","NEGOTIATION","CLOSED_WON","CLOSED_LOST"]) {
+      addRow("", s);
+    }
+    info.addRow([]);
+    addRow("Target Product values", "", true);
+    addRow("", "Annual");
+    addRow("", "Nutshell Paperbacks");
+    info.addRow([]);
+    addRow("Target Services values", "", true);
+    addRow("", "Quiz");
+    addRow("", "Training");
+    addRow("", "Classroom Program");
 
-    // ── Serialise and return ─────────────────────────────────────────
+    // ── Write & return ────────────────────────────────────────────────
     const buffer = await wb.xlsx.writeBuffer();
+
     return new Response(buffer, {
       headers: {
         "Content-Type":        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         "Content-Disposition": 'attachment; filename="schools_import_template.xlsx"',
+        "Cache-Control":       "no-store",
       },
     });
+
   } catch (err) {
-    console.error("Template generation error:", err);
+    console.error("[template] generation error:", err);
     return NextResponse.json({ error: "Failed to generate template" }, { status: 500 });
   }
-}
-
-function colLetter(n: number): string {
-  let s = "";
-  while (n > 0) {
-    const rem = (n - 1) % 26;
-    s = String.fromCharCode(65 + rem) + s;
-    n = Math.floor((n - 1) / 26);
-  }
-  return s;
 }
