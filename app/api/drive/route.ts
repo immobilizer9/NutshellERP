@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { google } from "googleapis";
 import { prisma } from "@/lib/prisma";
 import { verifyToken, getTokenFromRequest } from "@/lib/auth";
+import fs from "fs";
+import path from "path";
 
 /** Google Drive auth via service account */
 function getDriveClient() {
@@ -15,7 +17,17 @@ function getDriveClient() {
   return google.drive({ version: "v3", auth });
 }
 
-const ROOT_FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID ?? "";
+/** Read the active Drive root folder: DB settings → env fallback */
+function getConfiguredFolderId(): string {
+  try {
+    const settingsPath = path.join(process.cwd(), "config", "settings.json");
+    if (fs.existsSync(settingsPath)) {
+      const s = JSON.parse(fs.readFileSync(settingsPath, "utf-8"));
+      if (s.driveFolderId) return s.driveFolderId;
+    }
+  } catch { /* ignore */ }
+  return process.env.GOOGLE_DRIVE_FOLDER_ID ?? "";
+}
 
 /** Find or create a sub-folder by name inside parentId */
 async function findOrCreateFolder(drive: any, name: string, parentId: string): Promise<string> {
@@ -33,8 +45,12 @@ async function findOrCreateFolder(drive: any, name: string, parentId: string): P
   return created.data.id as string;
 }
 
-/** GET /api/drive?action=list[&folderId=xxx]  — list Drive files in a folder
- *  GET /api/drive?action=export&fileId=xxx    — export Google Doc as HTML */
+/**
+ * GET /api/drive?action=list[&folderId=xxx]  — list files in the configured root folder (or given folder)
+ * GET /api/drive?action=export&fileId=xxx    — export a Google Doc/file as HTML
+ * GET /api/drive?action=folders[&parentId=xxx] — list subfolders (ADMIN only); no parentId = top-level shared folders
+ * GET /api/drive?action=folder-info&folderId=xxx — get folder name/metadata
+ */
 export async function GET(req: Request) {
   try {
     const token = getTokenFromRequest(req);
@@ -42,34 +58,65 @@ export async function GET(req: Request) {
     const decoded = verifyToken(token);
     if (!decoded) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    if (!ROOT_FOLDER_ID) {
-      return NextResponse.json({ error: "GOOGLE_DRIVE_FOLDER_ID not configured" }, { status: 503 });
-    }
-
     const { searchParams } = new URL(req.url);
     const action   = searchParams.get("action") ?? "list";
-    const folderId = searchParams.get("folderId") ?? ROOT_FOLDER_ID;
     const fileId   = searchParams.get("fileId");
+    const parentId = searchParams.get("parentId");
+    const folderId = searchParams.get("folderId");
 
     const drive = getDriveClient();
 
+    // ── Folder browsing (ADMIN only) ──────────────────────────────────────────
+    if (action === "folders") {
+      if (!decoded.roles.includes("ADMIN")) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+      let q: string;
+      if (parentId) {
+        // subfolders of a given parent
+        q = `mimeType='application/vnd.google-apps.folder' and '${parentId}' in parents and trashed=false`;
+      } else {
+        // All folders the service account can see (shared directly with it)
+        q = `mimeType='application/vnd.google-apps.folder' and trashed=false`;
+      }
+      const res = await drive.files.list({
+        q,
+        fields: "files(id,name,parents,modifiedTime)",
+        orderBy: "name",
+        pageSize: 100,
+      });
+      return NextResponse.json({ folders: res.data.files ?? [] });
+    }
+
+    // ── Folder info ───────────────────────────────────────────────────────────
+    if (action === "folder-info" && folderId) {
+      if (!decoded.roles.includes("ADMIN")) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+      const res = await drive.files.get({ fileId: folderId, fields: "id,name,parents" });
+      return NextResponse.json({ folder: res.data });
+    }
+
+    // ── Export a file as HTML ─────────────────────────────────────────────────
     if (action === "export" && fileId) {
-      // Export Google Doc as HTML
       let html = "";
       try {
         const exported = await drive.files.export({ fileId, mimeType: "text/html" });
         html = exported.data as string;
       } catch {
-        // Not a Google Doc — try downloading directly
         const raw = await drive.files.get({ fileId, alt: "media" }, { responseType: "text" });
         html = raw.data as string;
       }
       return NextResponse.json({ html });
     }
 
-    // List files
+    // ── List files in configured root folder ─────────────────────────────────
+    const rootId = folderId ?? getConfiguredFolderId();
+    if (!rootId) {
+      return NextResponse.json({ error: "No Drive folder configured. Set one in Admin → Settings." }, { status: 503 });
+    }
     const res = await drive.files.list({
-      q: `'${folderId}' in parents and trashed=false`,
+      q: `'${rootId}' in parents and trashed=false`,
       fields: "files(id,name,mimeType,modifiedTime,webViewLink,size)",
       orderBy: "modifiedTime desc",
       pageSize: 50,
@@ -91,12 +138,17 @@ export async function POST(req: Request) {
     const decoded = verifyToken(token);
     if (!decoded) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    if (!ROOT_FOLDER_ID) {
-      return NextResponse.json({ error: "GOOGLE_DRIVE_FOLDER_ID not configured" }, { status: 503 });
-    }
-
     const { documentId } = await req.json();
     if (!documentId) return NextResponse.json({ error: "documentId required" }, { status: 400 });
+
+    // Resolve root folder from settings (or env fallback)
+    const rootFolderId = getConfiguredFolderId();
+    if (!rootFolderId) {
+      return NextResponse.json(
+        { error: "No Drive folder configured. Set one in Admin → Settings." },
+        { status: 503 }
+      );
+    }
 
     const doc = await (prisma as any).contentDocument.findUnique({
       where: { id: documentId },
@@ -114,8 +166,8 @@ export async function POST(req: Request) {
     const year  = doc.topic?.year ?? new Date().getFullYear();
     const book  = doc.topic?.bookNumber;
 
-    // Folder: Root → Year → Book N (or "Unassigned")
-    const yearFolder = await findOrCreateFolder(drive, String(year), ROOT_FOLDER_ID);
+    // Folder hierarchy: Root → Year → Book N (or "Unassigned")
+    const yearFolder = await findOrCreateFolder(drive, String(year), rootFolderId);
     const bookLabel  = book ? `Book ${book}` : "Unassigned";
     const bookFolder = await findOrCreateFolder(drive, bookLabel, yearFolder);
 

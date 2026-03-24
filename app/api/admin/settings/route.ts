@@ -25,6 +25,8 @@ function getDefaults() {
     emailOnOverdueTask:          false,
     defaultPipelineStage:        "LEAD",
     defaultPaymentStatus:        "UNPAID",
+    driveFolderId:               "",
+    driveFolderName:             "",
   };
 }
 
@@ -82,6 +84,9 @@ export async function PUT(req: Request) {
       emailOnOrderRejection: !!body.emailOnOrderRejection,
       emailOnTaskAssignment: !!body.emailOnTaskAssignment,
       emailOnOverdueTask:    !!body.emailOnOverdueTask,
+      // Drive folder (optional — only update if provided)
+      ...(body.driveFolderId   !== undefined && { driveFolderId:   body.driveFolderId   ?? "" }),
+      ...(body.driveFolderName !== undefined && { driveFolderName: body.driveFolderName ?? "" }),
     };
 
     writeSettings(updated);

@@ -19,6 +19,15 @@ export default function AdminSettingsPage() {
   const [emailTask,       setEmailTask]       = useState(true);
   const [emailOverdue,    setEmailOverdue]    = useState(false);
 
+  // Drive folder picker
+  const [driveFolderId,   setDriveFolderId]   = useState("");
+  const [driveFolderName, setDriveFolderName] = useState("");
+  const [drivePickerOpen, setDrivePickerOpen] = useState(false);
+  const [driveFolders,    setDriveFolders]    = useState<any[]>([]);
+  const [driveLoading,    setDriveLoading]    = useState(false);
+  const [driveError,      setDriveError]      = useState("");
+  const [breadcrumb,      setBreadcrumb]      = useState<{id: string; name: string}[]>([]);
+
   useEffect(() => {
     Promise.all([
       fetch("/api/auth/me",        { credentials: "include" }).then((r) => r.json()),
@@ -34,6 +43,8 @@ export default function AdminSettingsPage() {
       setEmailRejection(s.emailOnOrderRejection ?? true);
       setEmailTask(s.emailOnTaskAssignment ?? true);
       setEmailOverdue(s.emailOnOverdueTask ?? false);
+      setDriveFolderId(s.driveFolderId ?? "");
+      setDriveFolderName(s.driveFolderName ?? "");
       setLoading(false);
     });
   }, []);
@@ -52,6 +63,8 @@ export default function AdminSettingsPage() {
         emailOnOrderRejection: emailRejection,
         emailOnTaskAssignment: emailTask,
         emailOnOverdueTask:    emailOverdue,
+        driveFolderId,
+        driveFolderName,
       }),
     });
     const data = await res.json();
@@ -63,6 +76,52 @@ export default function AdminSettingsPage() {
       setTimeout(() => setSaved(false), 2500);
     }
   };
+
+  async function openDrivePicker() {
+    setDrivePickerOpen(true);
+    setDriveError("");
+    setBreadcrumb([]);
+    await loadFolders(null);
+  }
+
+  async function loadFolders(parentId: string | null) {
+    setDriveLoading(true);
+    setDriveError("");
+    try {
+      const url = parentId
+        ? `/api/drive?action=folders&parentId=${parentId}`
+        : "/api/drive?action=folders";
+      const res  = await fetch(url, { credentials: "include" });
+      const data = await res.json();
+      if (!res.ok) { setDriveError(data.error ?? "Failed to load folders"); return; }
+      setDriveFolders(data.folders ?? []);
+    } finally {
+      setDriveLoading(false);
+    }
+  }
+
+  async function enterFolder(folder: { id: string; name: string }) {
+    setBreadcrumb((prev) => [...prev, folder]);
+    await loadFolders(folder.id);
+  }
+
+  async function navigateTo(index: number) {
+    if (index < 0) {
+      setBreadcrumb([]);
+      await loadFolders(null);
+    } else {
+      const crumb = breadcrumb[index];
+      setBreadcrumb((prev) => prev.slice(0, index + 1));
+      await loadFolders(crumb.id);
+    }
+  }
+
+  function selectFolder(folder: { id: string; name: string }) {
+    const path = [...breadcrumb.map((b) => b.name), folder.name].join(" / ");
+    setDriveFolderId(folder.id);
+    setDriveFolderName(path);
+    setDrivePickerOpen(false);
+  }
 
   if (loading) return <p style={{ color: "var(--text-muted)", padding: "40px 0" }}>Loading…</p>;
 
@@ -166,6 +225,166 @@ export default function AdminSettingsPage() {
           ))}
         </div>
       </div>
+
+      {/* ── Google Drive Integration ── */}
+      <div className="card" style={{ maxWidth: 580, marginBottom: 16 }}>
+        <h2 style={{ marginBottom: 4 }}>Google Drive Integration</h2>
+        <p style={{ fontSize: 12.5, color: "var(--text-muted)", marginBottom: 18 }}>
+          Select the Drive folder used for content backups and imports. Share the folder with your service account email first.
+        </p>
+
+        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+          <div style={{ flex: 1, minWidth: 200 }}>
+            <label className="form-label">Selected Folder</label>
+            <div style={{
+              border: "1px solid var(--border)", borderRadius: "var(--radius)",
+              padding: "8px 12px", fontSize: 13,
+              background: driveFolderId ? "rgba(99,102,241,0.05)" : "var(--bg)",
+              color: driveFolderId ? "var(--text-primary)" : "var(--text-muted)",
+              display: "flex", alignItems: "center", gap: 8, minHeight: 38,
+            }}>
+              {driveFolderId ? (
+                <>
+                  <span style={{ fontSize: 14 }}>📁</span>
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {driveFolderName || driveFolderId}
+                  </span>
+                  <button
+                    style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", color: "var(--red)", fontSize: 16, lineHeight: 1, padding: 0 }}
+                    onClick={() => { setDriveFolderId(""); setDriveFolderName(""); }}
+                    title="Clear folder"
+                  >×</button>
+                </>
+              ) : (
+                <span>No folder selected</span>
+              )}
+            </div>
+            {driveFolderId && (
+              <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4 }}>
+                ID: <code style={{ fontFamily: "monospace" }}>{driveFolderId}</code>
+              </p>
+            )}
+          </div>
+          <div style={{ paddingTop: 20 }}>
+            <button className="btn btn-secondary" style={{ fontSize: 13 }} onClick={openDrivePicker}>
+              📂 Browse Drive
+            </button>
+          </div>
+        </div>
+
+        {!process.env.NEXT_PUBLIC_DRIVE_CONFIGURED && !driveFolderId && (
+          <p style={{ fontSize: 12, color: "var(--yellow)", marginTop: 12, padding: "8px 12px", background: "rgba(234,179,8,0.08)", borderRadius: "var(--radius)" }}>
+            Set <code>GOOGLE_SERVICE_ACCOUNT_EMAIL</code> and <code>GOOGLE_PRIVATE_KEY</code> in your environment, then share a Drive folder with that email before selecting it here.
+          </p>
+        )}
+      </div>
+
+      {/* ── Drive folder picker modal ── */}
+      {drivePickerOpen && (
+        <div style={{
+          position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 1000,
+          display: "flex", alignItems: "center", justifyContent: "center",
+        }} onClick={(e) => { if (e.target === e.currentTarget) setDrivePickerOpen(false); }}>
+          <div style={{
+            background: "var(--surface)", borderRadius: 10, width: 520, maxWidth: "95vw",
+            maxHeight: "80vh", display: "flex", flexDirection: "column",
+            boxShadow: "0 20px 60px rgba(0,0,0,0.35)",
+          }}>
+            {/* Header */}
+            <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <h2 style={{ margin: 0, fontSize: 16 }}>Select Google Drive Folder</h2>
+              <button className="btn btn-ghost" style={{ fontSize: 18, padding: "2px 8px" }}
+                onClick={() => setDrivePickerOpen(false)}>×</button>
+            </div>
+
+            {/* Breadcrumb */}
+            <div style={{ padding: "8px 20px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap", minHeight: 38 }}>
+              <button
+                style={{ background: "none", border: "none", cursor: "pointer", fontSize: 13, color: "var(--accent)", padding: "2px 4px" }}
+                onClick={() => navigateTo(-1)}>
+                My Drive
+              </button>
+              {breadcrumb.map((crumb, i) => (
+                <span key={crumb.id} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                  <span style={{ color: "var(--text-muted)", fontSize: 12 }}>/</span>
+                  <button
+                    style={{ background: "none", border: "none", cursor: "pointer", fontSize: 13, color: i === breadcrumb.length - 1 ? "var(--text-primary)" : "var(--accent)", padding: "2px 4px" }}
+                    onClick={() => navigateTo(i)}>
+                    {crumb.name}
+                  </button>
+                </span>
+              ))}
+            </div>
+
+            {/* Folder list */}
+            <div style={{ flex: 1, overflowY: "auto", padding: "8px 0" }}>
+              {driveError && (
+                <div style={{ padding: "12px 20px", color: "var(--red)", fontSize: 13 }}>{driveError}</div>
+              )}
+              {driveLoading ? (
+                <div style={{ padding: "32px 20px", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>
+                  Loading folders…
+                </div>
+              ) : driveFolders.length === 0 ? (
+                <div style={{ padding: "32px 20px", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>
+                  {breadcrumb.length === 0
+                    ? "No folders shared with the service account. Share a folder first."
+                    : "No subfolders here."}
+                </div>
+              ) : (
+                driveFolders.map((folder: any) => (
+                  <div key={folder.id} style={{
+                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                    padding: "10px 20px", gap: 12, cursor: "pointer",
+                    transition: "background 0.1s",
+                  }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg)")}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0, flex: 1 }}
+                      onClick={() => enterFolder({ id: folder.id, name: folder.name })}>
+                      <span style={{ fontSize: 18, flexShrink: 0 }}>📁</span>
+                      <span style={{ fontSize: 13, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {folder.name}
+                      </span>
+                    </div>
+                    <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                      <button
+                        className="btn btn-ghost"
+                        style={{ fontSize: 11, padding: "3px 8px" }}
+                        onClick={() => enterFolder({ id: folder.id, name: folder.name })}
+                        title="Open folder">
+                        Open ›
+                      </button>
+                      <button
+                        className="btn btn-primary"
+                        style={{ fontSize: 11, padding: "3px 10px" }}
+                        onClick={() => selectFolder({ id: folder.id, name: folder.name })}>
+                        Select
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Footer: select current folder if navigated in */}
+            {breadcrumb.length > 0 && (
+              <div style={{ padding: "12px 20px", borderTop: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                  Current: {breadcrumb.map((b) => b.name).join(" / ")}
+                </span>
+                <button
+                  className="btn btn-primary"
+                  style={{ fontSize: 13 }}
+                  onClick={() => selectFolder(breadcrumb[breadcrumb.length - 1])}>
+                  Use This Folder
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ── Save ── */}
       {error && (
