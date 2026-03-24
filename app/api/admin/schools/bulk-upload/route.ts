@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyToken, getTokenFromRequest } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/auditLog";
+import { parseCSVLine } from "@/lib/csvParse";
 
 // Expected CSV columns (case-insensitive headers):
 // name, address, city, state, contactPerson, contactPhone, latitude, longitude, pipelineStage
@@ -131,23 +132,4 @@ export async function POST(req: Request) {
   }
 }
 
-// Handles quoted CSV fields (e.g. "Smith, John" stays as one field)
-function parseCSVLine(line: string): string[] {
-  const result: string[] = [];
-  let current = "";
-  let inQuotes = false;
-
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i];
-    if (ch === '"') {
-      inQuotes = !inQuotes;
-    } else if (ch === "," && !inQuotes) {
-      result.push(current.trim());
-      current = "";
-    } else {
-      current += ch;
-    }
-  }
-  result.push(current.trim());
-  return result;
-}
+// parseCSVLine is imported from @/lib/csvParse

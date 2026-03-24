@@ -1,10 +1,30 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { checkRateLimit } from "@/lib/rateLimit";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 
 export async function POST(req: Request) {
   try {
+    // Rate limit: 10 attempts per 15 minutes per IP
+    const ip =
+      (req.headers as any).get?.("x-forwarded-for")?.split(",")[0]?.trim() ??
+      "unknown";
+    const rl = checkRateLimit(`login:${ip}`, 10, 15 * 60 * 1000);
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: "Too many login attempts. Please try again later." },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": String(rl.retryAfterSec),
+            "X-RateLimit-Limit": "10",
+            "X-RateLimit-Remaining": "0",
+          },
+        }
+      );
+    }
+
     const { email, password } = await req.json();
 
     if (!email || !password) {
