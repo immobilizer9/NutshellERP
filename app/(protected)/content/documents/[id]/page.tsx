@@ -13,10 +13,9 @@ const STATUS_BADGE: Record<string, string> = {
 };
 
 const PRODUCT_LABELS: Record<string, string> = {
-  ANNUAL:            "Annual",
-  PAPERBACKS_PLAINS: "Paperbacks (Plains)",
-  PAPERBACKS_HILLS:  "Paperbacks (Hills)",
-  ONLINE:            "Online",
+  ANNUAL:     "Annual",
+  PAPERBACKS: "Paperbacks",
+  ONLINE:     "Online",
 };
 
 function ToolbarButton({ label, onClick, title }: { label: string; onClick: () => void; title?: string }) {
