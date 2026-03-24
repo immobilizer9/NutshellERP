@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 
 export default function AdminSettingsPage() {
   const [me,      setMe]      = useState<any>(null);
@@ -19,20 +20,27 @@ export default function AdminSettingsPage() {
   const [emailTask,       setEmailTask]       = useState(true);
   const [emailOverdue,    setEmailOverdue]    = useState(false);
 
-  // Drive folder picker
+  // Drive OAuth + folder picker
+  const [driveConnected,  setDriveConnected]  = useState(false);
+  const [driveEmail,      setDriveEmail]      = useState<string | null>(null);
   const [driveFolderId,   setDriveFolderId]   = useState("");
   const [driveFolderName, setDriveFolderName] = useState("");
   const [drivePickerOpen, setDrivePickerOpen] = useState(false);
   const [driveFolders,    setDriveFolders]    = useState<any[]>([]);
   const [driveLoading,    setDriveLoading]    = useState(false);
   const [driveError,      setDriveError]      = useState("");
+  const [driveStatusMsg,  setDriveStatusMsg]  = useState("");
+  const [disconnecting,   setDisconnecting]   = useState(false);
   const [breadcrumb,      setBreadcrumb]      = useState<{id: string; name: string}[]>([]);
+
+  const searchParams = useSearchParams();
 
   useEffect(() => {
     Promise.all([
       fetch("/api/auth/me",        { credentials: "include" }).then((r) => r.json()),
       fetch("/api/admin/settings", { credentials: "include" }).then((r) => r.json()),
-    ]).then(([meData, settingsData]) => {
+      fetch("/api/drive?action=status", { credentials: "include" }).then((r) => r.json()).catch(() => ({})),
+    ]).then(([meData, settingsData, driveStatus]) => {
       setMe(meData?.user);
       setOrgName(settingsData?.orgName ?? "");
       const s = settingsData?.settings ?? {};
@@ -45,8 +53,16 @@ export default function AdminSettingsPage() {
       setEmailOverdue(s.emailOnOverdueTask ?? false);
       setDriveFolderId(s.driveFolderId ?? "");
       setDriveFolderName(s.driveFolderName ?? "");
+      setDriveConnected(driveStatus?.connected ?? false);
+      setDriveEmail(driveStatus?.email ?? null);
       setLoading(false);
     });
+
+    // Handle OAuth redirect result
+    const driveConnectedParam = searchParams.get("drive_connected");
+    const driveErrorParam     = searchParams.get("drive_error");
+    if (driveConnectedParam === "1") setDriveStatusMsg("✓ Google Drive connected successfully!");
+    if (driveErrorParam)             setDriveStatusMsg(`Drive connection failed: ${driveErrorParam}`);
   }, []);
 
   const handleSave = async () => {
@@ -76,6 +92,17 @@ export default function AdminSettingsPage() {
       setTimeout(() => setSaved(false), 2500);
     }
   };
+
+  async function disconnectDrive() {
+    setDisconnecting(true);
+    const res = await fetch("/api/drive/auth", { method: "DELETE", credentials: "include" });
+    if (res.ok) {
+      setDriveConnected(false);
+      setDriveEmail(null);
+      setDriveStatusMsg("Google Drive disconnected.");
+    }
+    setDisconnecting(false);
+  }
 
   async function openDrivePicker() {
     setDrivePickerOpen(true);
@@ -229,53 +256,92 @@ export default function AdminSettingsPage() {
       {/* ── Google Drive Integration ── */}
       <div className="card" style={{ maxWidth: 580, marginBottom: 16 }}>
         <h2 style={{ marginBottom: 4 }}>Google Drive Integration</h2>
-        <p style={{ fontSize: 12.5, color: "var(--text-muted)", marginBottom: 18 }}>
-          Select the Drive folder used for content backups and imports. Share the folder with your service account email first.
+        <p style={{ fontSize: 12.5, color: "var(--text-muted)", marginBottom: 16 }}>
+          Connect your Google account to enable content backups and imports. Requires <code>GOOGLE_CLIENT_ID</code> and <code>GOOGLE_CLIENT_SECRET</code> in your environment.
         </p>
 
-        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-          <div style={{ flex: 1, minWidth: 200 }}>
-            <label className="form-label">Selected Folder</label>
-            <div style={{
-              border: "1px solid var(--border)", borderRadius: "var(--radius)",
-              padding: "8px 12px", fontSize: 13,
-              background: driveFolderId ? "rgba(99,102,241,0.05)" : "var(--bg)",
-              color: driveFolderId ? "var(--text-primary)" : "var(--text-muted)",
-              display: "flex", alignItems: "center", gap: 8, minHeight: 38,
-            }}>
-              {driveFolderId ? (
-                <>
-                  <span style={{ fontSize: 14 }}>📁</span>
-                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {driveFolderName || driveFolderId}
-                  </span>
-                  <button
-                    style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", color: "var(--red)", fontSize: 16, lineHeight: 1, padding: 0 }}
-                    onClick={() => { setDriveFolderId(""); setDriveFolderName(""); }}
-                    title="Clear folder"
-                  >×</button>
-                </>
-              ) : (
-                <span>No folder selected</span>
-              )}
+        {driveStatusMsg && (
+          <div className={`alert ${driveStatusMsg.startsWith("✓") ? "alert-success" : "alert-error"}`}
+            style={{ marginBottom: 14 }}>
+            {driveStatusMsg}
+          </div>
+        )}
+
+        {/* Connection status */}
+        <div style={{
+          padding: "12px 14px", borderRadius: "var(--radius)",
+          border: `1px solid ${driveConnected ? "rgba(34,197,94,0.3)" : "var(--border)"}`,
+          background: driveConnected ? "rgba(34,197,94,0.05)" : "var(--bg)",
+          display: "flex", alignItems: "center", gap: 12, marginBottom: 16,
+        }}>
+          <span style={{ fontSize: 22 }}>{driveConnected ? "✅" : "⬜"}</span>
+          <div style={{ flex: 1 }}>
+            {driveConnected ? (
+              <>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)" }}>
+                  Connected as {driveEmail}
+                </div>
+                <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>
+                  Google Drive access is active. You can browse folders and backup content.
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)" }}>Not connected</div>
+                <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>
+                  Click Connect to authorise with your Google account.
+                </div>
+              </>
+            )}
+          </div>
+          {driveConnected ? (
+            <button className="btn btn-ghost" style={{ fontSize: 12, color: "var(--red)" }}
+              onClick={disconnectDrive} disabled={disconnecting}>
+              {disconnecting ? "Disconnecting…" : "Disconnect"}
+            </button>
+          ) : (
+            <a href="/api/drive/auth" className="btn btn-primary" style={{ fontSize: 13, textDecoration: "none" }}>
+              Connect Google Drive
+            </a>
+          )}
+        </div>
+
+        {/* Folder picker — only shown when connected */}
+        {driveConnected && (
+          <>
+            <label className="form-label">Backup Folder</label>
+            <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+              <div style={{
+                flex: 1, border: "1px solid var(--border)", borderRadius: "var(--radius)",
+                padding: "8px 12px", fontSize: 13,
+                background: driveFolderId ? "rgba(99,102,241,0.05)" : "var(--bg)",
+                color: driveFolderId ? "var(--text-primary)" : "var(--text-muted)",
+                display: "flex", alignItems: "center", gap: 8, minHeight: 38,
+              }}>
+                {driveFolderId ? (
+                  <>
+                    <span>📁</span>
+                    <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {driveFolderName || driveFolderId}
+                    </span>
+                    <button style={{ background: "none", border: "none", cursor: "pointer", color: "var(--red)", fontSize: 16, padding: 0 }}
+                      onClick={() => { setDriveFolderId(""); setDriveFolderName(""); }}>×</button>
+                  </>
+                ) : (
+                  <span>No folder selected — backups will fail until one is chosen</span>
+                )}
+              </div>
+              <button className="btn btn-secondary" style={{ fontSize: 13, flexShrink: 0 }}
+                onClick={openDrivePicker}>
+                📂 Browse
+              </button>
             </div>
             {driveFolderId && (
               <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4 }}>
                 ID: <code style={{ fontFamily: "monospace" }}>{driveFolderId}</code>
               </p>
             )}
-          </div>
-          <div style={{ paddingTop: 20 }}>
-            <button className="btn btn-secondary" style={{ fontSize: 13 }} onClick={openDrivePicker}>
-              📂 Browse Drive
-            </button>
-          </div>
-        </div>
-
-        {!process.env.NEXT_PUBLIC_DRIVE_CONFIGURED && !driveFolderId && (
-          <p style={{ fontSize: 12, color: "var(--yellow)", marginTop: 12, padding: "8px 12px", background: "rgba(234,179,8,0.08)", borderRadius: "var(--radius)" }}>
-            Set <code>GOOGLE_SERVICE_ACCOUNT_EMAIL</code> and <code>GOOGLE_PRIVATE_KEY</code> in your environment, then share a Drive folder with that email before selecting it here.
-          </p>
+          </>
         )}
       </div>
 

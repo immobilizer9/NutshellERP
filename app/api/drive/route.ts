@@ -5,34 +5,67 @@ import { verifyToken, getTokenFromRequest } from "@/lib/auth";
 import fs from "fs";
 import path from "path";
 
-/** Google Drive auth via service account */
-function getDriveClient() {
-  const auth = new google.auth.GoogleAuth({
-    credentials: {
-      client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-      private_key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
-    },
-    scopes: ["https://www.googleapis.com/auth/drive"],
-  });
-  return google.drive({ version: "v3", auth });
+const SETTINGS_PATH = path.join(process.cwd(), "config", "settings.json");
+
+function readSettings() {
+  try {
+    if (fs.existsSync(SETTINGS_PATH)) return JSON.parse(fs.readFileSync(SETTINGS_PATH, "utf-8"));
+  } catch { /* ignore */ }
+  return {};
 }
 
-/** Read the active Drive root folder: DB settings → env fallback */
+function writeSettings(data: any) {
+  if (!fs.existsSync(path.dirname(SETTINGS_PATH)))
+    fs.mkdirSync(path.dirname(SETTINGS_PATH), { recursive: true });
+  fs.writeFileSync(SETTINGS_PATH, JSON.stringify(data, null, 2), "utf-8");
+}
+
+/** Build an authenticated Drive client from stored OAuth2 tokens */
+function getDriveClient() {
+  const s = readSettings();
+
+  if (!s.driveOAuthRefreshToken) {
+    throw new Error("Google Drive not connected. Go to Admin → Settings and click Connect Google Drive.");
+  }
+
+  const oauth2Client = new google.auth.OAuth2(
+    process.env.GOOGLE_CLIENT_ID,
+    process.env.GOOGLE_CLIENT_SECRET,
+    `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/api/drive/callback`
+  );
+
+  oauth2Client.setCredentials({
+    refresh_token: s.driveOAuthRefreshToken,
+    access_token:  s.driveOAuthAccessToken  ?? undefined,
+    expiry_date:   s.driveOAuthExpiry        ?? undefined,
+  });
+
+  // Persist refreshed tokens automatically
+  oauth2Client.on("tokens", (tokens) => {
+    const current = readSettings();
+    if (tokens.refresh_token) current.driveOAuthRefreshToken = tokens.refresh_token;
+    if (tokens.access_token)  current.driveOAuthAccessToken  = tokens.access_token;
+    if (tokens.expiry_date)   current.driveOAuthExpiry        = tokens.expiry_date;
+    writeSettings(current);
+  });
+
+  return google.drive({ version: "v3", auth: oauth2Client });
+}
+
+/** Read the configured root folder ID */
 function getConfiguredFolderId(): string {
   try {
-    const settingsPath = path.join(process.cwd(), "config", "settings.json");
-    if (fs.existsSync(settingsPath)) {
-      const s = JSON.parse(fs.readFileSync(settingsPath, "utf-8"));
-      if (s.driveFolderId) return s.driveFolderId;
-    }
+    const s = readSettings();
+    if (s.driveFolderId) return s.driveFolderId;
   } catch { /* ignore */ }
   return process.env.GOOGLE_DRIVE_FOLDER_ID ?? "";
 }
 
 /** Find or create a sub-folder by name inside parentId */
 async function findOrCreateFolder(drive: any, name: string, parentId: string): Promise<string> {
+  const safeName = name.replace(/'/g, "\\'");
   const res = await drive.files.list({
-    q: `name='${name}' and mimeType='application/vnd.google-apps.folder' and '${parentId}' in parents and trashed=false`,
+    q: `name='${safeName}' and mimeType='application/vnd.google-apps.folder' and '${parentId}' in parents and trashed=false`,
     fields: "files(id,name)",
     spaces: "drive",
   });
@@ -46,10 +79,10 @@ async function findOrCreateFolder(drive: any, name: string, parentId: string): P
 }
 
 /**
- * GET /api/drive?action=list[&folderId=xxx]  — list files in the configured root folder (or given folder)
- * GET /api/drive?action=export&fileId=xxx    — export a Google Doc/file as HTML
- * GET /api/drive?action=folders[&parentId=xxx] — list subfolders (ADMIN only); no parentId = top-level shared folders
- * GET /api/drive?action=folder-info&folderId=xxx — get folder name/metadata
+ * GET /api/drive?action=list[&folderId=xxx]          — list files in a folder
+ * GET /api/drive?action=export&fileId=xxx            — export Google Doc as HTML
+ * GET /api/drive?action=folders[&parentId=xxx]       — browse folders (ADMIN only)
+ * GET /api/drive?action=status                       — OAuth connection status (ADMIN only)
  */
 export async function GET(req: Request) {
   try {
@@ -64,40 +97,40 @@ export async function GET(req: Request) {
     const parentId = searchParams.get("parentId");
     const folderId = searchParams.get("folderId");
 
+    // ── OAuth status (no Drive client needed) ────────────────────────────────
+    if (action === "status") {
+      if (!decoded.roles.includes("ADMIN"))
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      const s = readSettings();
+      return NextResponse.json({
+        connected:     !!s.driveOAuthRefreshToken,
+        email:         s.driveConnectedEmail ?? null,
+        folderId:      s.driveFolderId      ?? null,
+        folderName:    s.driveFolderName    ?? null,
+      });
+    }
+
     const drive = getDriveClient();
 
-    // ── Folder browsing (ADMIN only) ──────────────────────────────────────────
+    // ── Folder browsing (ADMIN only) ─────────────────────────────────────────
     if (action === "folders") {
-      if (!decoded.roles.includes("ADMIN")) {
+      if (!decoded.roles.includes("ADMIN"))
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-      }
-      let q: string;
-      if (parentId) {
-        // subfolders of a given parent
-        q = `mimeType='application/vnd.google-apps.folder' and '${parentId}' in parents and trashed=false`;
-      } else {
-        // All folders the service account can see (shared directly with it)
-        q = `mimeType='application/vnd.google-apps.folder' and trashed=false`;
-      }
+
+      const q = parentId
+        ? `mimeType='application/vnd.google-apps.folder' and '${parentId}' in parents and trashed=false`
+        : `mimeType='application/vnd.google-apps.folder' and 'root' in parents and trashed=false`;
+
       const res = await drive.files.list({
         q,
-        fields: "files(id,name,parents,modifiedTime)",
-        orderBy: "name",
-        pageSize: 100,
+        fields:   "files(id,name,modifiedTime)",
+        orderBy:  "name",
+        pageSize: 200,
       });
       return NextResponse.json({ folders: res.data.files ?? [] });
     }
 
-    // ── Folder info ───────────────────────────────────────────────────────────
-    if (action === "folder-info" && folderId) {
-      if (!decoded.roles.includes("ADMIN")) {
-        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-      }
-      const res = await drive.files.get({ fileId: folderId, fields: "id,name,parents" });
-      return NextResponse.json({ folder: res.data });
-    }
-
-    // ── Export a file as HTML ─────────────────────────────────────────────────
+    // ── Export a file as HTML ────────────────────────────────────────────────
     if (action === "export" && fileId) {
       let html = "";
       try {
@@ -110,15 +143,18 @@ export async function GET(req: Request) {
       return NextResponse.json({ html });
     }
 
-    // ── List files in configured root folder ─────────────────────────────────
+    // ── List files in a folder ───────────────────────────────────────────────
     const rootId = folderId ?? getConfiguredFolderId();
     if (!rootId) {
-      return NextResponse.json({ error: "No Drive folder configured. Set one in Admin → Settings." }, { status: 503 });
+      return NextResponse.json(
+        { error: "No folder selected. Go to Admin → Settings and choose a Drive folder." },
+        { status: 503 }
+      );
     }
     const res = await drive.files.list({
-      q: `'${rootId}' in parents and trashed=false`,
-      fields: "files(id,name,mimeType,modifiedTime,webViewLink,size)",
-      orderBy: "modifiedTime desc",
+      q:        `'${rootId}' in parents and trashed=false`,
+      fields:   "files(id,name,mimeType,modifiedTime,webViewLink,size)",
+      orderBy:  "modifiedTime desc",
       pageSize: 50,
     });
     return NextResponse.json({ files: res.data.files ?? [] });
@@ -128,9 +164,7 @@ export async function GET(req: Request) {
   }
 }
 
-/** POST /api/drive  — backup a content document to Drive
- *  Body: { documentId }
- *  Returns: { driveFileId, driveFileUrl } */
+/** POST /api/drive  — back up a content document to Drive */
 export async function POST(req: Request) {
   try {
     const token = getTokenFromRequest(req);
@@ -141,37 +175,32 @@ export async function POST(req: Request) {
     const { documentId } = await req.json();
     if (!documentId) return NextResponse.json({ error: "documentId required" }, { status: 400 });
 
-    // Resolve root folder from settings (or env fallback)
     const rootFolderId = getConfiguredFolderId();
     if (!rootFolderId) {
       return NextResponse.json(
-        { error: "No Drive folder configured. Set one in Admin → Settings." },
+        { error: "No folder selected. Go to Admin → Settings and choose a Drive folder." },
         { status: 503 }
       );
     }
 
     const doc = await (prisma as any).contentDocument.findUnique({
-      where: { id: documentId },
+      where:   { id: documentId },
       include: { topic: true },
     });
     if (!doc) return NextResponse.json({ error: "Document not found" }, { status: 404 });
 
-    // Verify access: author or admin
     const isAdmin = decoded.roles.includes("ADMIN");
     if (!isAdmin && doc.authorId !== decoded.userId) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const drive = getDriveClient();
-    const year  = doc.topic?.year ?? new Date().getFullYear();
-    const book  = doc.topic?.bookNumber;
-
-    // Folder hierarchy: Root → Year → Book N (or "Unassigned")
+    const drive    = getDriveClient();
+    const year     = doc.topic?.year       ?? new Date().getFullYear();
+    const book     = doc.topic?.bookNumber;
     const yearFolder = await findOrCreateFolder(drive, String(year), rootFolderId);
     const bookLabel  = book ? `Book ${book}` : "Unassigned";
     const bookFolder = await findOrCreateFolder(drive, bookLabel, yearFolder);
 
-    // HTML wrapper with metadata header
     const htmlContent = `<!DOCTYPE html><html><head><meta charset="utf-8">
 <title>${doc.title}</title></head><body>
 <h1>${doc.title}</h1>
@@ -183,31 +212,28 @@ ${doc.body}
     const fileName = `${doc.title}.html`;
     const mimeType = "text/html";
 
-    let fileId   = doc.driveFileId;
-    let fileUrl  = doc.driveFileUrl;
+    let fileId  = doc.driveFileId;
+    let fileUrl = doc.driveFileUrl;
 
     if (fileId) {
-      // Update existing file
       await drive.files.update({
         fileId,
         requestBody: { name: fileName },
         media: { mimeType, body: htmlContent },
       });
     } else {
-      // Create new file
       const created = await drive.files.create({
         requestBody: { name: fileName, parents: [bookFolder], mimeType },
-        media: { mimeType, body: htmlContent },
-        fields: "id,webViewLink",
+        media:       { mimeType, body: htmlContent },
+        fields:      "id,webViewLink",
       });
-      fileId  = created.data.id ?? null;
+      fileId  = created.data.id       ?? null;
       fileUrl = created.data.webViewLink ?? null;
     }
 
-    // Persist Drive IDs back to the document
     await (prisma as any).contentDocument.update({
       where: { id: documentId },
-      data: { driveFileId: fileId, driveFileUrl: fileUrl },
+      data:  { driveFileId: fileId, driveFileUrl: fileUrl },
     });
 
     return NextResponse.json({ driveFileId: fileId, driveFileUrl: fileUrl });
