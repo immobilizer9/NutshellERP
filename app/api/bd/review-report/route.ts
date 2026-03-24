@@ -13,8 +13,10 @@ export async function POST(req: Request) {
     }
 
     const decoded = verifyToken(token);
+    const isAdmin  = decoded?.roles.includes("ADMIN");
+    const isBdHead = decoded?.roles.includes("BD_HEAD");
 
-    if (!decoded || !decoded.roles.includes("BD_HEAD")) {
+    if (!decoded || (!isAdmin && !isBdHead)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -46,7 +48,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Report not found" }, { status: 404 });
     }
 
-    if (report.salesUser.managerId !== decoded.userId) {
+    if (!isAdmin && report.salesUser.managerId !== decoded.userId) {
       return NextResponse.json({ error: "Not allowed" }, { status: 403 });
     }
 

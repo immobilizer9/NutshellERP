@@ -8,15 +8,26 @@ export async function GET(req: Request) {
     if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const decoded = verifyToken(token);
-    if (!decoded || !decoded.roles.includes("BD_HEAD")) {
+    const isAdmin  = decoded?.roles.includes("ADMIN");
+    const isBdHead = decoded?.roles.includes("BD_HEAD");
+    if (!decoded || (!isAdmin && !isBdHead)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     // ── Team ──────────────────────────────────────────────────────
-    const team = await prisma.user.findMany({
-      where:  { managerId: decoded.userId },
-      select: { id: true, name: true },
-    });
+    // Admin sees all sales users org-wide; BD head sees their direct reports
+    const team = isAdmin
+      ? await prisma.user.findMany({
+          where: {
+            organizationId: decoded.organizationId,
+            roles: { some: { role: { name: "SALES" } } },
+          },
+          select: { id: true, name: true },
+        })
+      : await prisma.user.findMany({
+          where:  { managerId: decoded.userId },
+          select: { id: true, name: true },
+        });
     const teamIds = team.map((u) => u.id);
 
     // ── Orders ────────────────────────────────────────────────────
@@ -141,6 +152,32 @@ export async function GET(req: Request) {
       return { userId: user.id, name: user.name, lastActivity, isInactive, monthRevenue };
     });
 
+    // ── Activity timeline ─────────────────────────────────────────
+    const recentOrders = orders.slice(-20);
+    const recentTasks  = tasks.slice(0, 20);
+    const timeline = [
+      ...reports.slice(0, 20).map((r) => ({
+        type:        "REPORT" as const,
+        user:        r.salesUser.name,
+        description: r.summary.slice(0, 100),
+        time:        r.createdAt.toISOString(),
+      })),
+      ...recentOrders.map((o) => ({
+        type:        "ORDER" as const,
+        user:        o.createdBy.name,
+        description: `Order for ${o.school.name} — ₹${o.netAmount.toLocaleString()}`,
+        time:        o.createdAt.toISOString(),
+      })),
+      ...recentTasks.map((t) => ({
+        type:        "TASK" as const,
+        user:        t.assignedTo.name,
+        description: t.title,
+        time:        t.createdAt.toISOString(),
+      })),
+    ]
+      .sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
+      .slice(0, 20);
+
     return NextResponse.json({
       // Orders — same shape as admin + sales analytics
       totalOrders,
@@ -172,6 +209,9 @@ export async function GET(req: Request) {
 
       // Team activity
       salesActivityStatus,
+
+      // Activity timeline (combined reports + orders + tasks)
+      timeline,
 
       // Daily reports (for team review)
       recentReports: reports.slice(0, 50),

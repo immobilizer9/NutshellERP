@@ -33,6 +33,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "userId, type, title, message required" }, { status: 400 });
     }
 
+    // Only admins can create notifications for other users
+    const isAdmin = decoded.roles.includes("ADMIN");
+    if (!isAdmin && userId !== decoded.userId) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const notification = await (prisma as any).notification.create({
       data: {
         userId,

@@ -7,7 +7,9 @@ export async function GET(req: Request) {
     const token = getTokenFromRequest(req);
     if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const decoded = verifyToken(token);
-    if (!decoded || !decoded.roles.includes("BD_HEAD")) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    const isAdmin  = decoded?.roles.includes("ADMIN");
+    const isBdHead = decoded?.roles.includes("BD_HEAD");
+    if (!decoded || (!isAdmin && !isBdHead)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
     const { searchParams } = new URL(req.url);
     const now   = new Date();
@@ -17,10 +19,15 @@ export async function GET(req: Request) {
     const start = new Date(year, month - 1, 1);
     const end   = new Date(year, month, 1);
 
-    const team = await prisma.user.findMany({
-      where: { managerId: decoded.userId },
-      select: { id: true, name: true },
-    });
+    const team = isAdmin
+      ? await prisma.user.findMany({
+          where: { organizationId: decoded.organizationId, roles: { some: { role: { name: "SALES" } } } },
+          select: { id: true, name: true },
+        })
+      : await prisma.user.findMany({
+          where: { managerId: decoded.userId },
+          select: { id: true, name: true },
+        });
 
     const members = await Promise.all(team.map(async (member) => {
       const target = await (prisma as any).target.findUnique({

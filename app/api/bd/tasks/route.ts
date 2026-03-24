@@ -9,7 +9,9 @@ export async function POST(req: Request) {
     if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const decoded = verifyToken(token);
-    if (!decoded || !decoded.roles.includes("BD_HEAD")) {
+    const isAdmin  = decoded?.roles.includes("ADMIN");
+    const isBdHead = decoded?.roles.includes("BD_HEAD");
+    if (!decoded || (!isAdmin && !isBdHead)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -22,7 +24,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // Verify assigned user is a direct report of this BD Head
+    // Verify assigned user is a direct report of this BD Head (admins can assign to anyone)
     const salesUser = await prisma.user.findUnique({
       where:  { id: assignedToId },
       select: { managerId: true, name: true, email: true },
@@ -32,7 +34,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Assigned user not found" }, { status: 404 });
     }
 
-    if (salesUser.managerId !== decoded.userId) {
+    if (!isAdmin && salesUser.managerId !== decoded.userId) {
       return NextResponse.json(
         { error: "You can only assign tasks to your own team members" },
         { status: 403 }
@@ -87,14 +89,21 @@ export async function GET(req: Request) {
     if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const decoded = verifyToken(token);
-    if (!decoded || !decoded.roles.includes("BD_HEAD")) {
+    const isAdmin  = decoded?.roles.includes("ADMIN");
+    const isBdHead = decoded?.roles.includes("BD_HEAD");
+    if (!decoded || (!isAdmin && !isBdHead)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const team = await prisma.user.findMany({
-      where:  { managerId: decoded.userId },
-      select: { id: true },
-    });
+    const team = isAdmin
+      ? await prisma.user.findMany({
+          where: { organizationId: decoded.organizationId, roles: { some: { role: { name: "SALES" } } } },
+          select: { id: true },
+        })
+      : await prisma.user.findMany({
+          where:  { managerId: decoded.userId },
+          select: { id: true },
+        });
 
     const tasks = await prisma.task.findMany({
       where:   { assignedToId: { in: team.map((u) => u.id) } },

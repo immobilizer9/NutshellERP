@@ -11,13 +11,17 @@ export async function GET(req: Request) {
     }
 
     const decoded = verifyToken(token);
+    const isAdmin  = decoded?.roles.includes("ADMIN");
+    const isBdHead = decoded?.roles.includes("BD_HEAD");
 
-    if (!decoded || !decoded.roles.includes("BD_HEAD")) {
+    if (!decoded || (!isAdmin && !isBdHead)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const team = await prisma.user.findMany({
-      where: { managerId: decoded.userId },
+      where: isAdmin
+        ? { organizationId: decoded.organizationId, roles: { some: { role: { name: "SALES" } } } }
+        : { managerId: decoded.userId },
       select: {
         id: true,
         name: true,

@@ -4,6 +4,12 @@ const bcrypt = require("bcrypt");
 const prisma = new PrismaClient();
 
 async function main() {
+  // ── Production guard ──────────────────────────────────────────────
+  if (process.env.NODE_ENV === "production" && process.env.ALLOW_SEED !== "true") {
+    console.error("❌ Seed blocked in production. Set ALLOW_SEED=true to override.");
+    process.exit(1);
+  }
+
   console.log("🌱 Seeding database...");
 
   // ─── Clean existing data in safe order (children before parents) ─
@@ -81,8 +87,8 @@ async function main() {
   const ROLE_MODULES = {
     ADMIN:        ["USER_MANAGEMENT", "AUDIT_LOG", "EXPORTS", "SETTINGS", "SCHOOL_IMPORT",
                    "CONTENT_ASSIGN", "CONTENT_REVIEW", "ANALYTICS", "ORDERS", "PIPELINE",
-                   "SCHOOLS", "TARGETS", "TEAM_MANAGEMENT", "QUIZ_SESSIONS", "TRAINING_SESSIONS",
-                   "EVENTS", "RECEIVABLES"],
+                   "SCHOOLS", "TARGETS", "TEAM_MANAGEMENT", "TASKS", "DAILY_REPORTS",
+                   "QUIZ_SESSIONS", "TRAINING_SESSIONS", "EVENTS", "RECEIVABLES"],
     BD_HEAD:      ["TEAM_MANAGEMENT", "ORDERS", "PIPELINE", "SCHOOLS", "ANALYTICS",
                    "TASKS", "DAILY_REPORTS", "TARGETS", "EVENTS", "RECEIVABLES"],
     SALES:        ["ORDERS", "PIPELINE", "ANALYTICS", "TASKS", "DAILY_REPORTS", "EVENTS"],
