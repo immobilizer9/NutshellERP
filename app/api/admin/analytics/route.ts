@@ -33,6 +33,28 @@ export async function GET(req: Request) {
     const totalOrders  = orders.length;
     const totalRevenue = orders.reduce((s, o) => s + o.netAmount, 0);
 
+    // ── Month-over-month comparison ─────────────────────────────────
+    const now = new Date();
+    const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const lastMonthEnd   = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
+
+    const thisMonthOrders = orders.filter((o) => new Date(o.createdAt) >= thisMonthStart);
+    const lastMonthOrders = orders.filter((o) => {
+      const d = new Date(o.createdAt);
+      return d >= lastMonthStart && d <= lastMonthEnd;
+    });
+
+    const thisMonthRevenue = thisMonthOrders.reduce((s, o) => s + o.netAmount, 0);
+    const lastMonthRevenue = lastMonthOrders.reduce((s, o) => s + o.netAmount, 0);
+
+    const momOrders  = lastMonthOrders.length  > 0
+      ? Math.round(((thisMonthOrders.length  - lastMonthOrders.length)  / lastMonthOrders.length)  * 100)
+      : thisMonthOrders.length > 0 ? 100 : 0;
+    const momRevenue = lastMonthRevenue > 0
+      ? Math.round(((thisMonthRevenue - lastMonthRevenue) / lastMonthRevenue) * 100)
+      : thisMonthRevenue > 0 ? 100 : 0;
+
     // ── School pipeline breakdown ───────────────────────────────────
     const schoolCounts = await prisma.school.groupBy({
       by: ["pipelineStage"],
@@ -99,6 +121,12 @@ export async function GET(req: Request) {
     return NextResponse.json({
       totalOrders,
       totalRevenue,
+      thisMonthOrders: thisMonthOrders.length,
+      thisMonthRevenue,
+      lastMonthOrders: lastMonthOrders.length,
+      lastMonthRevenue,
+      momOrders,
+      momRevenue,
       latestReports: reports,
       monthlyRevenue,
       pipelineBreakdown,

@@ -41,6 +41,12 @@ export default function UsersPage() {
   const [editMsg, setEditMsg]               = useState({ text: "", ok: false });
   const [editSubmitting, setEditSubmitting] = useState(false);
 
+  // Password reset state
+  const [resetUser, setResetUser]           = useState<any>(null);
+  const [resetPw,   setResetPw]             = useState("");
+  const [resetMsg,  setResetMsg]            = useState({ text: "", ok: false });
+  const [resetSubmitting, setResetSubmitting] = useState(false);
+
   // CSV upload state
   const [csvUploading, setCsvUploading] = useState(false);
   const [csvResult, setCsvResult]       = useState<{ created: number; skipped: number; errors: string[] } | null>(null);
@@ -120,6 +126,25 @@ export default function UsersPage() {
       setTimeout(() => { setEditUser(null); setEditMsg({ text: "", ok: false }); }, 900);
     }
     setEditSubmitting(false);
+  };
+
+  const handleResetPassword = async () => {
+    if (!resetPw.trim() || resetPw.length < 6) {
+      setResetMsg({ text: "Password must be at least 6 characters.", ok: false }); return;
+    }
+    setResetSubmitting(true); setResetMsg({ text: "", ok: false });
+    const res  = await fetch("/api/admin/reset-password", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      credentials: "include", body: JSON.stringify({ userId: resetUser.id, newPassword: resetPw }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      setResetMsg({ text: "Password reset successfully.", ok: true });
+      setTimeout(() => { setResetUser(null); setResetPw(""); setResetMsg({ text: "", ok: false }); }, 1500);
+    } else {
+      setResetMsg({ text: data.error || "Failed.", ok: false });
+    }
+    setResetSubmitting(false);
   };
 
   const handleCSVUpload = async (file: File) => {
@@ -252,8 +277,12 @@ export default function UsersPage() {
                     <td><Badge status={user.isActive ? "ACTIVE" : "INACTIVE"} /></td>
                     <td style={{ color: "var(--text-muted)", fontSize: 12.5 }}>{new Date(user.createdAt).toLocaleDateString()}</td>
                     <td>
-                      <div style={{ display: "flex", gap: 6 }}>
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                         <button className="btn" style={{ fontSize: 12, padding: "3px 10px" }} onClick={() => openEdit(user)}>Edit</button>
+                        <button className="btn" style={{ fontSize: 12, padding: "3px 10px" }}
+                          onClick={() => { setResetUser(user); setResetPw(""); setResetMsg({ text: "", ok: false }); }}>
+                          Reset PW
+                        </button>
                         <button
                           className={`btn ${user.isActive ? "btn-danger" : "btn-success"}`}
                           style={{ fontSize: 12, padding: "3px 10px" }}
@@ -357,6 +386,41 @@ export default function UsersPage() {
                 <button className="btn" onClick={() => setShowModal(false)}>Cancel</button>
                 <button className="btn btn-primary" disabled={submitting} onClick={handleCreate}>
                   {submitting ? "Creating…" : "Create User"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reset Password Modal */}
+      {resetUser && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex",
+          alignItems: "center", justifyContent: "center", zIndex: 50, padding: 24 }}
+          onClick={(e) => { if (e.target === e.currentTarget) setResetUser(null); }}>
+          <div className="fade-in" style={{ background: "var(--surface)", borderRadius: "var(--radius-xl)",
+            border: "1px solid var(--border)", padding: 28, width: "100%", maxWidth: 400,
+            boxShadow: "0 24px 48px rgba(0,0,0,0.18)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <div>
+                <h2 style={{ margin: "0 0 2px" }}>Reset Password</h2>
+                <p style={{ margin: 0, fontSize: 13, color: "var(--text-muted)" }}>{resetUser.name} · {resetUser.email}</p>
+              </div>
+              <button className="btn" onClick={() => setResetUser(null)} style={{ fontSize: 18, padding: "2px 8px" }}>×</button>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <div>
+                <label className="form-label">New Password *</label>
+                <input className="input" type="password" placeholder="Min 6 characters" value={resetPw}
+                  onChange={(e) => setResetPw(e.target.value)} />
+              </div>
+              {resetMsg.text && (
+                <div className={`alert ${resetMsg.ok ? "alert-success" : "alert-error"}`}>{resetMsg.text}</div>
+              )}
+              <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                <button className="btn" onClick={() => setResetUser(null)}>Cancel</button>
+                <button className="btn btn-primary" disabled={resetSubmitting} onClick={handleResetPassword}>
+                  {resetSubmitting ? "Resetting…" : "Reset Password"}
                 </button>
               </div>
             </div>

@@ -46,6 +46,7 @@ model User {
   contentTopicsAssigned   ContentTopic[]           @relation("TopicAssignee")
   contentTopicsCreated    ContentTopic[]           @relation("TopicCreator")
   contentDocuments        ContentDocument[]        @relation("DocAuthor")
+  documentComments        DocumentComment[]        @relation("CommentAuthor")
   questionBanks           QuestionBank[]           @relation("QBCreator")
   trainingMaterials       TrainingMaterial[]       @relation("MatCreator")
   quizSessionsConducted   QuizSession[]            @relation("QuizConductor")
@@ -434,8 +435,22 @@ model ContentDocument {
   driveFileId  String?
   driveFileUrl String?
 
+  comments DocumentComment[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model DocumentComment {
+  id         String          @id @default(uuid())
+  documentId String
+  document   ContentDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  authorId   String
+  author     User            @relation("CommentAuthor", fields: [authorId], references: [id])
+  quotedText String          // the highlighted/selected text
+  body       String          // the comment message
+  resolved   Boolean         @default(false)
+  createdAt  DateTime        @default(now())
 }
 
 model QuestionBank {

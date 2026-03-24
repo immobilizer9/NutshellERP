@@ -62,7 +62,7 @@ export default function AdminDashboard() {
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+          gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
           gap: 14,
           marginBottom: 24,
         }}
@@ -70,12 +70,32 @@ export default function AdminDashboard() {
         <div className="stat-card">
           <div className="stat-label">Total Orders</div>
           <div className="stat-value">{data?.totalOrders ?? "—"}</div>
+          {data && (
+            <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4 }}>
+              This month: <strong>{data.thisMonthOrders}</strong>
+              {data.momOrders !== 0 && (
+                <span style={{ marginLeft: 6, fontWeight: 600, color: data.momOrders > 0 ? "var(--green)" : "var(--red)" }}>
+                  {data.momOrders > 0 ? "▲" : "▼"}{Math.abs(data.momOrders)}% MoM
+                </span>
+              )}
+            </div>
+          )}
         </div>
         <div className="stat-card">
           <div className="stat-label">Total Revenue</div>
           <div className="stat-value" style={{ color: "var(--green)" }}>
             {data ? `₹${data.totalRevenue.toLocaleString()}` : "—"}
           </div>
+          {data && (
+            <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4 }}>
+              This month: <strong style={{ color: "var(--green)" }}>₹{(data.thisMonthRevenue ?? 0).toLocaleString()}</strong>
+              {data.momRevenue !== 0 && (
+                <span style={{ marginLeft: 6, fontWeight: 600, color: data.momRevenue > 0 ? "var(--green)" : "var(--red)" }}>
+                  {data.momRevenue > 0 ? "▲" : "▼"}{Math.abs(data.momRevenue)}% MoM
+                </span>
+              )}
+            </div>
+          )}
         </div>
         <div className="stat-card">
           <div className="stat-label">Sales Reps</div>
