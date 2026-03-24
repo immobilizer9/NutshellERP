@@ -67,15 +67,27 @@ export async function POST(req: Request) {
       const address      = cols[idx("address")]?.trim()      ?? "";
       const city         = cols[idx("city")]?.trim()          ?? "";
       const state        = cols[idx("state")]?.trim()         ?? "";
-      const contactPerson= idx("contactperson") >= 0 ? cols[idx("contactperson")]?.trim() : undefined;
-      const contactPhone = idx("contactphone")  >= 0 ? cols[idx("contactphone")]?.trim()  : undefined;
-      const latRaw       = idx("latitude")      >= 0 ? cols[idx("latitude")]              : undefined;
-      const lngRaw       = idx("longitude")     >= 0 ? cols[idx("longitude")]             : undefined;
-      const stageRaw     = idx("pipelinestage") >= 0 ? cols[idx("pipelinestage")]?.trim().toUpperCase() : undefined;
+      const contactPerson= idx("contactperson")  >= 0 ? cols[idx("contactperson")]?.trim()  : undefined;
+      const contactPhone = idx("contactphone")   >= 0 ? cols[idx("contactphone")]?.trim()   : undefined;
+      const stageRaw     = idx("pipelinestage")  >= 0 ? cols[idx("pipelinestage")]?.trim().toUpperCase() : undefined;
 
-      const latitude  = latRaw  ? parseFloat(latRaw)  : 0;
-      const longitude = lngRaw  ? parseFloat(lngRaw)  : 0;
-      const pipelineStage = stageRaw && VALID_STAGES.includes(stageRaw) ? stageRaw : "LEAD";
+      // targetProduct: normalise display labels → internal values
+      const productRaw   = idx("targetproduct")  >= 0 ? cols[idx("targetproduct")]?.trim()  : undefined;
+      const serviceRaw   = idx("targetservices") >= 0 ? cols[idx("targetservices")]?.trim() : undefined;
+
+      const PRODUCT_MAP: Record<string, string> = {
+        "annual":              "ANNUAL",
+        "nutshell paperbacks": "NUTSHELL_PAPERBACKS",
+      };
+      const SERVICE_MAP: Record<string, string> = {
+        "quiz":              "QUIZ",
+        "training":          "TRAINING",
+        "classroom program": "CLASSROOM_PROGRAM",
+      };
+
+      const targetProduct  = productRaw  ? (PRODUCT_MAP[productRaw.toLowerCase()]  ?? productRaw.toUpperCase())  : null;
+      const targetServices = serviceRaw  ? (SERVICE_MAP[serviceRaw.toLowerCase()]  ?? serviceRaw.toUpperCase())  : null;
+      const pipelineStage  = stageRaw && VALID_STAGES.includes(stageRaw) ? stageRaw : "LEAD";
 
       if (!city || !state) {
         results.errors.push(`Row ${i + 1}: "${name}" missing city or state — skipped`);
@@ -90,11 +102,11 @@ export async function POST(req: Request) {
             address,
             city,
             state,
-            latitude,
-            longitude,
-            contactPerson: contactPerson || null,
-            contactPhone:  contactPhone  || null,
-            pipelineStage: pipelineStage as any,
+            contactPerson:  contactPerson  || null,
+            contactPhone:   contactPhone   || null,
+            targetProduct:  targetProduct  || null,
+            targetServices: targetServices || null,
+            pipelineStage:  pipelineStage as any,
           },
         });
         results.created++;

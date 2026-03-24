@@ -118,6 +118,9 @@ model School {
   contactPerson String?
   contactPhone  String?
 
+  targetProduct  String?  // ANNUAL | NUTSHELL_PAPERBACKS
+  targetServices String?  // QUIZ | TRAINING | CLASSROOM_PROGRAM
+
   assignedToId String?
   assignedTo   User?   @relation("SchoolAssignment", fields: [assignedToId], references: [id])
 
