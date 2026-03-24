@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyToken, getTokenFromRequest } from "@/lib/auth";
 
-const VALID_ROLES = ["ADMIN", "BD_HEAD", "SALES"];
+const ALL_ROLES = ["ADMIN", "BD_HEAD", "SALES", "CONTENT_TEAM", "TRAINER", "DESIGN_TEAM"];
 
 export async function POST(req: Request) {
   try {
@@ -15,7 +15,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const { userId, managerId, phone, isActive, name, role } = await req.json();
+    const { userId, managerId, phone, isActive, name, roles } = await req.json();
 
     if (!userId) return NextResponse.json({ error: "userId is required" }, { status: 400 });
 
@@ -32,14 +32,17 @@ export async function POST(req: Request) {
 
     const updated = await prisma.user.update({ where: { id: userId }, data: updateData });
 
-    // Role change: update the UserRole record
-    if (role && VALID_ROLES.includes(role)) {
-      const org = decoded.organizationId;
-      const roleRecord = await prisma.role.findFirst({ where: { name: role } });
-      if (roleRecord) {
-        // Remove existing roles, add new one
+    // Multi-role update: replace all existing roles with new set
+    if (Array.isArray(roles) && roles.length > 0) {
+      const validRoles = roles.filter((r: string) => ALL_ROLES.includes(r));
+      if (validRoles.length > 0) {
         await prisma.userRole.deleteMany({ where: { userId } });
-        await prisma.userRole.create({ data: { userId, roleId: roleRecord.id } });
+        for (const roleName of validRoles) {
+          const roleRecord = await prisma.role.findFirst({ where: { name: roleName } });
+          if (roleRecord) {
+            await prisma.userRole.create({ data: { userId, roleId: roleRecord.id } });
+          }
+        }
       }
     }
 

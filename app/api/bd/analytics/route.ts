@@ -29,12 +29,13 @@ export async function GET(req: Request) {
       orderBy: { createdAt: "asc" },
     });
 
-    const approvedOrders = orders.filter((o) => o.status === "APPROVED");
-    const totalOrders    = orders.length;
-    const totalRevenue   = approvedOrders.reduce((s, o) => s + o.netAmount, 0);
-    const totalGross     = approvedOrders.reduce((s, o) => s + o.grossAmount, 0);
-    const pendingCount   = orders.filter((o) => o.status === "PENDING").length;
-    const rejectedCount  = orders.filter((o) => o.status === "REJECTED").length;
+    const approvedOrders  = orders.filter((o) => o.status === "APPROVED");
+    const pendingOrdersList = orders.filter((o) => o.status === "PENDING");
+    const totalOrders     = orders.length;
+    const totalRevenue    = approvedOrders.reduce((s, o) => s + o.netAmount, 0);
+    const totalGross      = approvedOrders.reduce((s, o) => s + o.grossAmount, 0);
+    const pendingCount    = pendingOrdersList.length;
+    const rejectedCount   = orders.filter((o) => o.status === "REJECTED").length;
 
     // ── Monthly revenue (last 12 months) ─────────────────────────
     const monthMap: Record<string, { label: string; revenue: number; orders: number }> = {};
@@ -144,7 +145,7 @@ export async function GET(req: Request) {
       // Orders — same shape as admin + sales analytics
       totalOrders,
       approvedOrders: approvedOrders.length,
-      pendingOrders:  pendingCount,
+      pendingOrders:  pendingOrdersList,
       rejectedOrders: rejectedCount,
       totalRevenue,
       totalGross,
@@ -171,6 +172,9 @@ export async function GET(req: Request) {
 
       // Team activity
       salesActivityStatus,
+
+      // Daily reports (for team review)
+      recentReports: reports.slice(0, 50),
     });
   } catch (error) {
     console.error("BD analytics error:", error);

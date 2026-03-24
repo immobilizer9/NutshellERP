@@ -33,9 +33,13 @@ export default function LoginPage() {
         return;
       }
 
-      if (data.roles.includes("ADMIN"))        router.push("/dashboard");
-      else if (data.roles.includes("BD_HEAD")) router.push("/bd/dashboard");
-      else if (data.roles.includes("SALES"))   router.push("/sales");
+      // Dashboard priority: USER_MANAGEMENT > TEAM_MANAGEMENT > ORDERS > CONTENT_CREATE > QUIZ_SESSIONS
+      if (data.roles.includes("ADMIN"))               router.push("/dashboard");
+      else if (data.roles.includes("BD_HEAD"))        router.push("/bd/dashboard");
+      else if (data.roles.includes("SALES"))          router.push("/sales");
+      else if (data.roles.includes("CONTENT_TEAM"))   router.push("/content/dashboard");
+      else if (data.roles.includes("TRAINER"))        router.push("/trainer/dashboard");
+      else if (data.roles.includes("DESIGN_TEAM"))    router.push("/design");
       else router.push("/");
     } catch {
       setError("Something went wrong. Please try again.");

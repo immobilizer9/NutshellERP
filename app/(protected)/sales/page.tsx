@@ -2,17 +2,13 @@
 
 import { useEffect, useState } from "react";
 import Badge from "@/app/components/Badge";
-import { EventCalendar, UpcomingEvents } from "@/app/components/EventCalendar";
 import VisitAlerts from "@/app/components/VisitAlerts";
 import DeliveryAlerts from "@/app/components/DeliveryAlerts";
-import ActivityCalendar from "@/app/components/ActivityCalendar";
 
 export default function SalesPage() {
   const [tasks, setTasks]     = useState<any[]>([]);
   const [orders, setOrders]   = useState<any[]>([]);
-  const [events, setEvents]   = useState<any[]>([]);
   const [target, setTarget]   = useState<any>(null);
-  const [me, setMe]           = useState<any>(null);
   const [report, setReport]   = useState({ summary: "", location: "" });
   const [reportMsg, setReportMsg] = useState({ text: "", ok: false });
   const [submittingReport, setSubmittingReport] = useState(false);
@@ -28,14 +24,6 @@ export default function SalesPage() {
       .then((r) => r.json())
       .then((d) => setOrders(Array.isArray(d) ? d : []));
 
-  const fetchEvents = () => {
-    const from = new Date(); from.setDate(1); from.setHours(0, 0, 0, 0);
-    const to   = new Date(from.getFullYear(), from.getMonth() + 3, 0);
-    fetch(`/api/events?from=${from.toISOString()}&to=${to.toISOString()}`, { credentials: "include" })
-      .then((r) => r.json())
-      .then((d) => setEvents(Array.isArray(d) ? d : []));
-  };
-
   const fetchTarget = () => {
     const now = new Date();
     fetch(`/api/targets?month=${now.getMonth() + 1}&year=${now.getFullYear()}`, { credentials: "include" })
@@ -46,11 +34,7 @@ export default function SalesPage() {
   useEffect(() => {
     fetchTasks();
     fetchOrders();
-    fetchEvents();
     fetchTarget();
-    fetch("/api/auth/me", { credentials: "include" })
-      .then((r) => r.json())
-      .then((d) => setMe(d?.user ?? null));
   }, []);
 
   const completeTask = async (taskId: string) => {
@@ -196,18 +180,6 @@ export default function SalesPage() {
           </div>
         </div>
       )}
-
-      {/* ── Calendar + Upcoming Events ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
-        <div className="card">
-          <h2 style={{ marginBottom: 14 }}>Calendar</h2>
-          <EventCalendar events={events} />
-        </div>
-        <div className="card">
-          <h2 style={{ marginBottom: 14 }}>Upcoming Events</h2>
-          <UpcomingEvents events={events} />
-        </div>
-      </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
         {/* ── My Tasks ── */}
@@ -371,13 +343,6 @@ export default function SalesPage() {
         )}
       </div>
 
-      {me && (
-        <ActivityCalendar
-          userRole="SALES"
-          currentUserId={me.id}
-          salesTeam={[]}
-        />
-      )}
     </>
   );
 }

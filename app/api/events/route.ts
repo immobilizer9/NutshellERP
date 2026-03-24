@@ -16,7 +16,7 @@ export async function GET(req: Request) {
 
     let where: any = {};
 
-    if (decoded.roles.includes("SALES")) {
+    if (decoded.roles.includes("SALES") || decoded.roles.includes("TRAINER")) {
       where.createdById = decoded.userId;
     } else if (decoded.roles.includes("BD_HEAD")) {
       const team = await prisma.user.findMany({

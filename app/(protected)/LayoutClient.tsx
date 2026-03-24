@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 const ICONS = {
@@ -11,174 +11,82 @@ const ICONS = {
   schools:     "M3 9l9-7 9 7v11a1 1 0 01-1 1H4a1 1 0 01-1-1V9z",
   tasks:       "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z",
   reports:     "M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z",
-  timeline:    "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z",
   users:       "M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197",
   analytics:   "M3 17l4-8 4 4 3-6 3 10",
   targets:     "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z",
-  competitors: "M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z",
   audit:       "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01",
-  metrics:     "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z",
-  neworder:    "M12 4v16m8-8H4",
   signout:     "M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1",
-  financial:   "M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z",
-  settings:    "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z",
-  approval:    "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z",
-  returns:     "M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6",
-  permissions: "M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z",
-  alert:       "M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z",
-  incentive:   "M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z",
-  teamperf:    "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z",
-  visits:      "M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z M15 11a3 3 0 11-6 0 3 3 0 016 0z",
   search:      "M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z",
   bell:        "M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9",
   content:     "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z",
-  design:      "M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z",
-  qbank:       "M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z",
   quiz:        "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01",
   training:    "M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253",
+  teamdash:    "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z",
+  exports:     "M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12",
+  review:      "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z",
 };
 
-const NAV_ADMIN = [
-  {
-    section: "Overview",
-    links: [
-      { href: "/dashboard",        label: "Dashboard",  icon: ICONS.dashboard  },
-      { href: "/pipeline",         label: "Pipeline",   icon: ICONS.pipeline   },
-      { href: "/analytics",        label: "Analytics",  icon: ICONS.analytics  },
-    ],
-  },
-  {
-    section: "Sales",
-    links: [
-      { href: "/orders",           label: "Orders",     icon: ICONS.orders     },
-      { href: "/admin/schools",    label: "Schools",    icon: ICONS.schools    },
-      { href: "/admin/financial",  label: "Financial",  icon: ICONS.financial  },
-    ],
-  },
-  {
-    section: "Content",
-    links: [
-      { href: "/admin/content",    label: "Content Mgmt", icon: ICONS.content },
-    ],
-  },
-  {
-    section: "Admin",
-    links: [
-      { href: "/admin/users",       label: "Users",        icon: ICONS.users       },
-      { href: "/admin/returns",     label: "Returns",      icon: ICONS.returns     },
-      { href: "/admin/permissions", label: "Permissions",  icon: ICONS.permissions },
-      { href: "/admin/audit-log",   label: "Audit Log",    icon: ICONS.audit       },
-      { href: "/admin/import",      label: "Import CSV",   icon: ICONS.orders      },
-      { href: "/admin/metrics",     label: "Sys. Metrics", icon: ICONS.metrics     },
-      { href: "/admin/settings",    label: "Settings",     icon: ICONS.settings    },
-    ],
-  },
-];
+// MODULE → NAV LINK MAPPING
+// section controls grouping in the sidebar
+const MODULE_NAV: Record<string, { href: string; label: string; section: string; icon: string }> = {
+  ANALYTICS:         { href: "/analytics",              label: "Analytics",         section: "Overview", icon: ICONS.analytics  },
+  ORDERS:            { href: "/orders",                 label: "Orders",            section: "Sales",    icon: ICONS.orders     },
+  PIPELINE:          { href: "/pipeline",               label: "Pipeline",          section: "Sales",    icon: ICONS.pipeline   },
+  SCHOOLS:           { href: "/bd/schools",             label: "Schools",           section: "Sales",    icon: ICONS.schools    },
+  TARGETS:           { href: "/targets",                label: "Targets",           section: "Sales",    icon: ICONS.targets    },
+  TEAM_MANAGEMENT:   { href: "/bd/dashboard",           label: "Team Dashboard",    section: "Team",     icon: ICONS.teamdash   },
+  TASKS:             { href: "/tasks",                  label: "Tasks",             section: "Team",     icon: ICONS.tasks      },
+  DAILY_REPORTS:     { href: "/reports",                label: "Daily Reports",     section: "Team",     icon: ICONS.reports    },
+  USER_MANAGEMENT:   { href: "/admin/users",            label: "Users",             section: "Admin",    icon: ICONS.users      },
+  AUDIT_LOG:         { href: "/admin/audit-log",        label: "Audit Log",         section: "Admin",    icon: ICONS.audit      },
+  EXPORTS:           { href: "/admin/exports",          label: "Exports",           section: "Admin",    icon: ICONS.exports    },
+  CONTENT_CREATE:    { href: "/content/workspace",      label: "My Content",        section: "Content",  icon: ICONS.content    },
+  CONTENT_ASSIGN:    { href: "/content/topics",         label: "Content Topics",    section: "Content",  icon: ICONS.content    },
+  CONTENT_REVIEW:    { href: "/content/review",         label: "Content Review",    section: "Content",  icon: ICONS.review     },
+  QUIZ_SESSIONS:     { href: "/content/quiz-sessions",  label: "Quiz Sessions",     section: "Sessions", icon: ICONS.quiz       },
+  TRAINING_SESSIONS: { href: "/content/training-sessions", label: "Training Sessions", section: "Sessions", icon: ICONS.training },
+  DESIGN_WORK:       { href: "/design",                    label: "Design Tasks",      section: "Design",   icon: ICONS.exports    },
+  EVENTS:            { href: "/events",                    label: "Event Manager",     section: "Sales",    icon: ICONS.tasks      },
+  RECEIVABLES:       { href: "/orders/receivables",         label: "Receivables",        section: "Sales",    icon: ICONS.orders     },
+  SETTINGS:          { href: "/settings",                    label: "Settings",           section: "Admin",    icon: ICONS.audit      },
+};
 
-const NAV_CONTENT = [
-  {
-    section: "Overview",
-    links: [
-      { href: "/content/dashboard",       label: "Dashboard",    icon: ICONS.dashboard  },
-    ],
-  },
-  {
-    section: "Content",
-    links: [
-      { href: "/content/topics",          label: "Topics",         icon: ICONS.content  },
-      { href: "/content/question-banks",  label: "Question Banks", icon: ICONS.qbank    },
-    ],
-  },
-  {
-    section: "Sessions",
-    links: [
-      { href: "/content/quiz-sessions",     label: "Quiz Sessions",     icon: ICONS.quiz     },
-      { href: "/content/training-sessions", label: "Training Sessions", icon: ICONS.training },
-    ],
-  },
-];
+const SECTION_ORDER = ["Overview", "Sales", "Team", "Admin", "Content", "Sessions", "Design"];
 
-const NAV_DESIGN = [
-  {
-    section: "Overview",
-    links: [
-      { href: "/design", label: "My Tasks", icon: ICONS.design },
-    ],
-  },
-];
+function getDashboardHref(modules: string[]): string {
+  if (modules.includes("USER_MANAGEMENT"))                             return "/dashboard";
+  if (modules.includes("TEAM_MANAGEMENT"))                             return "/bd/dashboard";
+  if (modules.includes("ORDERS") && !modules.includes("TEAM_MANAGEMENT")) return "/sales";
+  if (modules.includes("QUIZ_SESSIONS") && !modules.includes("CONTENT_ASSIGN")) return "/trainer/dashboard";
+  if (modules.includes("CONTENT_CREATE"))                              return "/content/dashboard";
+  if (modules.includes("DESIGN_WORK"))                                 return "/design";
+  return "/";
+}
 
-const NAV_BD = [
-  {
-    section: "Overview",
-    links: [
-      { href: "/bd/dashboard",        label: "Dashboard",   icon: ICONS.dashboard },
-      { href: "/pipeline",            label: "Pipeline",    icon: ICONS.pipeline  },
-      { href: "/analytics",           label: "Analytics",   icon: ICONS.analytics },
-    ],
-  },
-  {
-    section: "Workflow",
-    links: [
-      { href: "/bd/approvals",        label: "Approvals",     icon: ICONS.approval  },
-      { href: "/bd/orders",           label: "All Orders",    icon: ICONS.orders    },
-      { href: "/bd/schools",          label: "Schools",       icon: ICONS.schools   },
-      { href: "/bd/competitors",      label: "Competitors",   icon: ICONS.competitors },
-      { href: "/orders/new",          label: "New Order",     icon: ICONS.neworder  },
-    ],
-  },
-  {
-    section: "Team",
-    links: [
-      { href: "/bd/team-performance",  label: "Performance",       icon: ICONS.teamperf  },
-      { href: "/bd/incentives",        label: "Incentives",        icon: ICONS.incentive },
-      { href: "/bd/targets",           label: "Targets",           icon: ICONS.targets   },
-      { href: "/bd/tasks",             label: "Tasks",             icon: ICONS.tasks     },
-      { href: "/bd/reports",           label: "Reports",           icon: ICONS.reports   },
-      { href: "/bd/timeline",          label: "Timeline",          icon: ICONS.timeline  },
-    ],
-  },
-  {
-    section: "Alerts",
-    links: [
-      { href: "/bd/delivery-alerts", label: "Delivery Alerts", icon: ICONS.alert  },
-      { href: "/bd/visit-alerts",    label: "Visit Alerts",    icon: ICONS.visits },
-    ],
-  },
-];
+type NavLink = { href: string; label: string; icon: string };
+type NavSection = { section: string; links: NavLink[] };
 
-const NAV_SALES = [
-  {
-    section: "Overview",
-    links: [
-      { href: "/sales",           label: "Dashboard",  icon: ICONS.dashboard },
-      { href: "/pipeline",        label: "Pipeline",   icon: ICONS.pipeline  },
-      { href: "/analytics",       label: "Analytics",  icon: ICONS.analytics },
-    ],
-  },
-  {
-    section: "Sales",
-    links: [
-      { href: "/orders",          label: "My Orders",  icon: ICONS.orders    },
-      { href: "/orders/new",      label: "New Order",  icon: ICONS.neworder  },
-      { href: "/bd/schools",      label: "Schools",    icon: ICONS.schools   },
-      { href: "/sales/visits",    label: "Visits",     icon: ICONS.visits    },
-    ],
-  },
-  {
-    section: "Performance",
-    links: [
-      { href: "/sales/targets",   label: "Targets",    icon: ICONS.targets   },
-      { href: "/sales/incentives", label: "Incentives", icon: ICONS.incentive },
-    ],
-  },
-  {
-    section: "Alerts",
-    links: [
-      { href: "/sales/delivery-alerts", label: "Delivery Alerts", icon: ICONS.alert  },
-      { href: "/sales/visit-alerts",    label: "Visit Alerts",    icon: ICONS.visits },
-    ],
-  },
-];
+function buildNav(modules: string[], dashboardHref: string): NavSection[] {
+  const sectionMap: Record<string, NavLink[]> = {};
+
+  for (const mod of modules) {
+    const entry = MODULE_NAV[mod];
+    if (!entry) continue;
+    if (!sectionMap[entry.section]) sectionMap[entry.section] = [];
+    // Avoid duplicates (e.g. multi-role users)
+    if (!sectionMap[entry.section].some((l) => l.href === entry.href)) {
+      sectionMap[entry.section].push({ href: entry.href, label: entry.label, icon: entry.icon });
+    }
+  }
+
+  // Inject Dashboard into Overview
+  if (!sectionMap["Overview"]) sectionMap["Overview"] = [];
+  sectionMap["Overview"].unshift({ href: dashboardHref, label: "Dashboard", icon: ICONS.dashboard });
+
+  return SECTION_ORDER
+    .filter((s) => sectionMap[s] && sectionMap[s].length > 0)
+    .map((s) => ({ section: s, links: sectionMap[s] }));
+}
 
 function NavIcon({ d }: { d: string }) {
   return (
@@ -199,15 +107,18 @@ function NavIcon({ d }: { d: string }) {
 
 export default function LayoutClient({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const [roles, setRoles] = useState<string[]>([]);
+  const router = useRouter();
+  const [modules, setModules] = useState<string[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [upcomingEvents, setUpcomingEvents] = useState<any[]>([]);
 
   useEffect(() => {
     fetch("/api/auth/me", { credentials: "include" })
       .then((r) => r.json())
       .then((data) => {
-        if (data?.user?.roles) setRoles(data.user.roles);
+        if (data?.user?.modules) setModules(data.user.modules);
       });
+
     // Poll unread notification count every 60s
     const fetchUnread = () =>
       fetch("/api/notifications", { credentials: "include" })
@@ -218,15 +129,21 @@ export default function LayoutClient({ children }: { children: React.ReactNode }
         .catch(() => {});
     fetchUnread();
     const interval = setInterval(fetchUnread, 60_000);
+
+    // Fetch upcoming events for schedule in sidebar
+    const from = new Date(); from.setHours(0, 0, 0, 0);
+    const to   = new Date(from.getFullYear(), from.getMonth() + 2, 0);
+    fetch(`/api/events?from=${from.toISOString()}&to=${to.toISOString()}`, { credentials: "include" })
+      .then((r) => r.json())
+      .then((d) => { if (Array.isArray(d)) setUpcomingEvents(d); })
+      .catch(() => {});
+
     return () => clearInterval(interval);
   }, []);
 
-  const nav =
-    roles.includes("ADMIN")        ? NAV_ADMIN   :
-    roles.includes("BD_HEAD")      ? NAV_BD       :
-    roles.includes("CONTENT_TEAM") ? NAV_CONTENT  :
-    roles.includes("DESIGN_TEAM")  ? NAV_DESIGN   :
-    roles.includes("SALES")        ? NAV_SALES    : [];
+  const dashboardHref = getDashboardHref(modules);
+  const nav = buildNav(modules, dashboardHref);
+  const showEventSchedule = modules.length > 0;
 
   const isActive = (href: string) =>
     pathname === href ||
@@ -261,6 +178,34 @@ export default function LayoutClient({ children }: { children: React.ReactNode }
           ))}
         </nav>
 
+        {showEventSchedule && (
+          <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: 8 }}>
+            <div className="sidebar-section">Event Schedule</div>
+            {upcomingEvents.length === 0 ? (
+              <div style={{ padding: "4px 10px", fontSize: 11.5, color: "var(--text-muted)" }}>No upcoming events</div>
+            ) : (
+              upcomingEvents.slice(0, 5).map((ev: any) => (
+                <div key={ev.id} style={{ padding: "4px 10px", display: "flex", gap: 7, alignItems: "flex-start" }}>
+                  <span style={{
+                    fontSize: 8, marginTop: 4, flexShrink: 0,
+                    color: ev.type === "QUIZ" ? "#6366f1" : ev.type === "TEACHER_TRAINING" ? "#22c55e" : "#3b82f6",
+                  }}>●</span>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 500, lineHeight: 1.3 }}>
+                      {ev.school?.name ?? "Event"}
+                    </div>
+                    <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 1 }}>
+                      {ev.type === "QUIZ" ? "Quiz" : ev.type === "TEACHER_TRAINING" ? "Training" : "Meeting"}
+                      {" · "}
+                      {new Date(ev.date).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+
         <div style={{ padding: "12px 10px", borderTop: "1px solid rgba(255,255,255,0.06)", display: "flex", flexDirection: "column", gap: 2 }}>
           <Link href="/search" className="sidebar-link" style={{ fontSize: 13 }}>
             <NavIcon d={ICONS.search} />
@@ -279,10 +224,17 @@ export default function LayoutClient({ children }: { children: React.ReactNode }
               </span>
             )}
           </Link>
-          <Link href="/" className="sidebar-link" style={{ fontSize: 13 }}>
+          <button
+            onClick={async () => {
+              await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+              router.push("/");
+            }}
+            className="sidebar-link"
+            style={{ fontSize: 13, background: "none", border: "none", cursor: "pointer", width: "100%", textAlign: "left" }}
+          >
             <NavIcon d={ICONS.signout} />
             Sign out
-          </Link>
+          </button>
         </div>
       </aside>
 

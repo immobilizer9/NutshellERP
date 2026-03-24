@@ -3,8 +3,28 @@
 import { useEffect, useRef, useState } from "react";
 import Badge from "@/app/components/Badge";
 
-const ROLES = ["ADMIN", "BD_HEAD", "SALES"];
-const EMPTY_FORM = { name: "", email: "", password: "", role: "", managerId: "", phone: "" };
+const ALL_ROLES = ["ADMIN", "BD_HEAD", "SALES", "CONTENT_TEAM", "TRAINER", "DESIGN_TEAM"];
+
+// Modules each role grants (for preview)
+const ROLE_MODULES: Record<string, string[]> = {
+  ADMIN:        ["USER_MANAGEMENT", "AUDIT_LOG", "EXPORTS", "CONTENT_ASSIGN", "CONTENT_REVIEW",
+                 "ANALYTICS", "ORDERS", "PIPELINE", "SCHOOLS", "TARGETS", "TEAM_MANAGEMENT",
+                 "QUIZ_SESSIONS", "TRAINING_SESSIONS"],
+  BD_HEAD:      ["TEAM_MANAGEMENT", "ORDERS", "PIPELINE", "SCHOOLS", "ANALYTICS",
+                 "TASKS", "DAILY_REPORTS", "TARGETS"],
+  SALES:        ["ORDERS", "PIPELINE", "ANALYTICS", "TASKS", "DAILY_REPORTS"],
+  CONTENT_TEAM: ["CONTENT_CREATE", "CONTENT_ASSIGN", "QUIZ_SESSIONS", "TRAINING_SESSIONS"],
+  TRAINER:      ["QUIZ_SESSIONS", "TRAINING_SESSIONS", "CONTENT_CREATE"],
+  DESIGN_TEAM:  [],
+};
+
+function getEffectiveModules(roles: string[]): string[] {
+  const set = new Set<string>();
+  for (const r of roles) for (const m of (ROLE_MODULES[r] ?? [])) set.add(m);
+  return Array.from(set).sort();
+}
+
+const EMPTY_FORM = { name: "", email: "", password: "", roles: [] as string[], managerId: "", phone: "" };
 
 export default function UsersPage() {
   const [users, setUsers]           = useState<any[]>([]);
@@ -16,9 +36,9 @@ export default function UsersPage() {
   const [search, setSearch]         = useState("");
 
   // Edit user state
-  const [editUser, setEditUser]           = useState<any>(null);
-  const [editForm, setEditForm]           = useState({ name: "", phone: "", role: "" });
-  const [editMsg, setEditMsg]             = useState({ text: "", ok: false });
+  const [editUser, setEditUser]             = useState<any>(null);
+  const [editForm, setEditForm]             = useState({ name: "", phone: "", roles: [] as string[] });
+  const [editMsg, setEditMsg]               = useState({ text: "", ok: false });
   const [editSubmitting, setEditSubmitting] = useState(false);
 
   // CSV upload state
@@ -37,8 +57,8 @@ export default function UsersPage() {
   useEffect(() => { fetchUsers(); }, []);
 
   const handleCreate = async () => {
-    if (!form.name || !form.email || !form.password || !form.role) {
-      setMsg({ text: "All fields are required.", ok: false }); return;
+    if (!form.name || !form.email || !form.password || form.roles.length === 0) {
+      setMsg({ text: "Name, email, password, and at least one role are required.", ok: false }); return;
     }
     setSubmitting(true); setMsg({ text: "", ok: false });
     const res  = await fetch("/api/admin/create-user", {
@@ -57,7 +77,6 @@ export default function UsersPage() {
     setSubmitting(false);
   };
 
-  // ── Deactivate / Activate ────────────────────────────────────────
   const toggleActive = async (user: any) => {
     await fetch("/api/admin/update-user", {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -67,13 +86,12 @@ export default function UsersPage() {
     fetchUsers();
   };
 
-  // ── Edit user ────────────────────────────────────────────────────
   const openEdit = (user: any) => {
     setEditUser(user);
     setEditForm({
       name:  user.name  ?? "",
       phone: user.phone ?? "",
-      role:  user.roles?.[0]?.role?.name ?? "",
+      roles: user.roles?.map((r: any) => r.role.name) ?? [],
     });
     setEditMsg({ text: "", ok: false });
   };
@@ -90,7 +108,7 @@ export default function UsersPage() {
         userId: editUser.id,
         name:   editForm.name,
         phone:  editForm.phone,
-        role:   editForm.role || undefined,
+        roles:  editForm.roles.length > 0 ? editForm.roles : undefined,
       }),
     });
     const data = await res.json();
@@ -104,19 +122,20 @@ export default function UsersPage() {
     setEditSubmitting(false);
   };
 
-  // ── CSV Upload ──────────────────────────────────────────────────
   const handleCSVUpload = async (file: File) => {
-    setCsvUploading(true);
-    setCsvResult(null);
+    setCsvUploading(true); setCsvResult(null);
     const text = await file.text();
     const res  = await fetch("/api/admin/schools/bulk-upload", {
       method: "POST", headers: { "Content-Type": "application/json" },
       credentials: "include", body: JSON.stringify({ csv: text }),
     });
     const data = await res.json();
-    setCsvResult(data);
-    setCsvUploading(false);
+    setCsvResult(data); setCsvUploading(false);
     if (fileRef.current) fileRef.current.value = "";
+  };
+
+  const toggleRole = (role: string, current: string[], setter: (r: string[]) => void) => {
+    setter(current.includes(role) ? current.filter((r) => r !== role) : [...current, role]);
   };
 
   const bdHeads  = users.filter((u) => u.roles?.some((r: any) => r.role.name === "BD_HEAD"));
@@ -125,95 +144,69 @@ export default function UsersPage() {
     u.email.toLowerCase().includes(search.toLowerCase())
   );
 
-  const roleCounts = ROLES.map((role) => ({
+  const roleCounts = ALL_ROLES.map((role) => ({
     role,
     count: users.filter((u) => u.roles?.some((r: any) => r.role.name === role)).length,
   }));
+
+  const createModules = getEffectiveModules(form.roles);
+  const editModules   = getEffectiveModules(editForm.roles);
 
   return (
     <>
       <div className="page-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <div>
           <h1>User Management</h1>
-          <p>Manage users and bulk-import schools</p>
+          <p>Manage users, roles, and bulk-import schools</p>
         </div>
         <button className="btn btn-primary" onClick={() => setShowModal(true)}>+ Create User</button>
       </div>
 
       {/* Stats */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 24 }}>
-        <div className="stat-card"><div className="stat-label">Total Users</div><div className="stat-value">{users.length}</div></div>
-        {roleCounts.map(({ role, count }) => (
-          <div key={role} className="stat-card">
-            <div className="stat-label">{role.replace("_"," ")}</div>
-            <div className="stat-value">{count}</div>
+        <div className="card" style={{ textAlign: "center", padding: "12px 8px" }}>
+          <div style={{ fontSize: 22, fontWeight: 700 }}>{users.length}</div>
+          <div style={{ fontSize: 12, color: "var(--text-muted)" }}>Total Users</div>
+        </div>
+        {roleCounts.slice(0, 3).map(({ role, count }) => (
+          <div key={role} className="card" style={{ textAlign: "center", padding: "12px 8px" }}>
+            <div style={{ fontSize: 22, fontWeight: 700 }}>{count}</div>
+            <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{role.replace("_", " ")}</div>
           </div>
         ))}
       </div>
 
-      {/* ── CSV Bulk School Upload ── */}
+      {/* Bulk School Import */}
       <div className="card" style={{ marginBottom: 16 }}>
         <h2 style={{ marginBottom: 6 }}>Bulk Import Schools</h2>
         <p style={{ color: "var(--text-muted)", fontSize: 13, margin: "0 0 14px" }}>
           Upload a CSV file to add multiple schools at once.
-          Required columns: <code style={{ fontFamily: "monospace", background: "var(--bg-subtle)", padding: "1px 5px", borderRadius: 3 }}>name, address, city, state</code>.
-          Optional: <code style={{ fontFamily: "monospace", background: "var(--bg-subtle)", padding: "1px 5px", borderRadius: 3 }}>contactPerson, contactPhone, latitude, longitude, pipelineStage</code>
+          Required columns: <code style={{ fontFamily: "monospace" }}>name, address, city, state</code>.
+          Optional: <code style={{ fontFamily: "monospace" }}>contactPerson, contactPhone, latitude, longitude, pipelineStage</code>
         </p>
-
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-          <input
-            ref={fileRef}
-            type="file"
-            accept=".csv"
-            style={{ display: "none" }}
-            onChange={(e) => { if (e.target.files?.[0]) handleCSVUpload(e.target.files[0]); }}
-          />
-          <button
-            className="btn btn-secondary"
-            disabled={csvUploading}
-            onClick={() => fileRef.current?.click()}
-            style={{ display: "flex", alignItems: "center", gap: 7 }}
-          >
-            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.6} style={{ width: 15, height: 15 }}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a1 1 0 001 1h10a1 1 0 001-1v-1M9 12V4m0 0l-3 3m3-3l3 3" />
-            </svg>
-            {csvUploading ? "Uploading..." : "Upload CSV"}
+          <input ref={fileRef} type="file" accept=".csv" style={{ display: "none" }}
+            onChange={(e) => { if (e.target.files?.[0]) handleCSVUpload(e.target.files[0]); }} />
+          <button className="btn" disabled={csvUploading} onClick={() => fileRef.current?.click()}>
+            {csvUploading ? "Uploading…" : "Upload CSV"}
           </button>
-
-          <button
-            className="btn btn-ghost"
-            style={{ fontSize: 12.5 }}
-            onClick={() => {
-              const sample = `name,address,city,state,contactPerson,contactPhone,pipelineStage
-St. Xavier's School,12 Park Street,Kolkata,West Bengal,Mr. Das,9000000001,LEAD
-Sunrise Public School,45 NH34,Siliguri,West Bengal,Mrs. Sharma,9000000002,CONTACTED`;
-              const a = document.createElement("a");
-              a.href = "data:text/csv;charset=utf-8," + encodeURIComponent(sample);
-              a.download = "sample_schools.csv";
-              a.click();
-            }}
-          >
-            ↓ Download Sample CSV
-          </button>
+          <button className="btn" style={{ fontSize: 12.5 }} onClick={() => {
+            const sample = `name,address,city,state,contactPerson,contactPhone,pipelineStage\nSt. Xavier's School,12 Park Street,Kolkata,West Bengal,Mr. Das,9000000001,LEAD`;
+            const a = document.createElement("a");
+            a.href = "data:text/csv;charset=utf-8," + encodeURIComponent(sample);
+            a.download = "sample_schools.csv"; a.click();
+          }}>↓ Sample CSV</button>
         </div>
-
         {csvResult && (
           <div style={{ marginTop: 14 }}>
-            <div className={`alert ${csvResult.created > 0 ? "alert-success" : "alert-info"}`} style={{ marginBottom: csvResult.errors.length > 0 ? 8 : 0 }}>
-              ✅ {csvResult.created} school{csvResult.created !== 1 ? "s" : ""} imported
+            <div className="alert alert-success" style={{ marginBottom: csvResult.errors.length > 0 ? 8 : 0 }}>
+              {csvResult.created} school{csvResult.created !== 1 ? "s" : ""} imported
               {csvResult.skipped > 0 && ` · ${csvResult.skipped} skipped`}
             </div>
             {csvResult.errors.length > 0 && (
-              <div style={{ background: "var(--red-bg)", border: "1px solid var(--red-border)", borderRadius: "var(--radius)", padding: "10px 14px" }}>
-                <p style={{ fontSize: 12.5, fontWeight: 600, color: "var(--red)", margin: "0 0 6px" }}>Errors:</p>
-                {csvResult.errors.slice(0, 10).map((e, i) => (
-                  <p key={i} style={{ fontSize: 12, color: "var(--red)", margin: "0 0 2px" }}>• {e}</p>
-                ))}
-                {csvResult.errors.length > 10 && (
-                  <p style={{ fontSize: 12, color: "var(--red)", margin: "4px 0 0", fontStyle: "italic" }}>
-                    ...and {csvResult.errors.length - 10} more
-                  </p>
-                )}
+              <div className="alert alert-error">
+                {csvResult.errors.slice(0, 5).map((e, i) => <div key={i}>• {e}</div>)}
+                {csvResult.errors.length > 5 && <div>…and {csvResult.errors.length - 5} more</div>}
               </div>
             )}
           </div>
@@ -222,7 +215,7 @@ Sunrise Public School,45 NH34,Siliguri,West Bengal,Mrs. Sharma,9000000002,CONTAC
 
       {/* Search */}
       <div style={{ marginBottom: 14 }}>
-        <input className="input" placeholder="Search users..." value={search}
+        <input className="input" placeholder="Search users…" value={search}
           onChange={(e) => setSearch(e.target.value)} style={{ maxWidth: 320 }} />
       </div>
 
@@ -230,7 +223,7 @@ Sunrise Public School,45 NH34,Siliguri,West Bengal,Mrs. Sharma,9000000002,CONTAC
       <div className="card">
         <h2 style={{ marginBottom: 14 }}>All Users</h2>
         {loading ? (
-          <p style={{ color: "var(--text-muted)", fontSize: 13 }}>Loading...</p>
+          <p style={{ color: "var(--text-muted)", fontSize: 13 }}>Loading…</p>
         ) : (
           <div className="table-wrap">
             <table className="data-table">
@@ -239,7 +232,7 @@ Sunrise Public School,45 NH34,Siliguri,West Bengal,Mrs. Sharma,9000000002,CONTAC
                   <th>Name</th>
                   <th>Email</th>
                   <th>Phone</th>
-                  <th>Role</th>
+                  <th>Roles</th>
                   <th>Status</th>
                   <th>Joined</th>
                   <th>Actions</th>
@@ -249,10 +242,10 @@ Sunrise Public School,45 NH34,Siliguri,West Bengal,Mrs. Sharma,9000000002,CONTAC
                 {filtered.map((user) => (
                   <tr key={user.id}>
                     <td style={{ fontWeight: 500 }}>{user.name}</td>
-                    <td style={{ color: "var(--text-secondary)", fontFamily: "monospace", fontSize: 13 }}>{user.email}</td>
-                    <td style={{ color: "var(--text-secondary)", fontSize: 13 }}>{user.phone ?? "—"}</td>
+                    <td style={{ color: "var(--text-muted)", fontSize: 13 }}>{user.email}</td>
+                    <td style={{ color: "var(--text-muted)", fontSize: 13 }}>{user.phone ?? "—"}</td>
                     <td>
-                      <div style={{ display: "flex", gap: 4 }}>
+                      <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
                         {user.roles?.map((r: any) => <Badge key={r.role.name} status={r.role.name} />)}
                       </div>
                     </td>
@@ -260,18 +253,11 @@ Sunrise Public School,45 NH34,Siliguri,West Bengal,Mrs. Sharma,9000000002,CONTAC
                     <td style={{ color: "var(--text-muted)", fontSize: 12.5 }}>{new Date(user.createdAt).toLocaleDateString()}</td>
                     <td>
                       <div style={{ display: "flex", gap: 6 }}>
-                        <button
-                          className="btn btn-ghost"
-                          style={{ fontSize: 12, padding: "3px 10px" }}
-                          onClick={() => openEdit(user)}
-                        >
-                          Edit
-                        </button>
+                        <button className="btn" style={{ fontSize: 12, padding: "3px 10px" }} onClick={() => openEdit(user)}>Edit</button>
                         <button
                           className={`btn ${user.isActive ? "btn-danger" : "btn-success"}`}
                           style={{ fontSize: 12, padding: "3px 10px" }}
-                          onClick={() => toggleActive(user)}
-                        >
+                          onClick={() => toggleActive(user)}>
                           {user.isActive ? "Deactivate" : "Activate"}
                         </button>
                       </div>
@@ -284,52 +270,81 @@ Sunrise Public School,45 NH34,Siliguri,West Bengal,Mrs. Sharma,9000000002,CONTAC
         )}
       </div>
 
-      {/* ── Create User Modal ── */}
+      {/* Create User Modal */}
       {showModal && (
-        <div
-          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50, padding: 24 }}
-          onClick={(e) => { if (e.target === e.currentTarget) setShowModal(false); }}
-        >
-          <div className="fade-in" style={{ background: "var(--surface)", borderRadius: "var(--radius-xl)", border: "1px solid var(--border)", padding: 28, width: "100%", maxWidth: 440, boxShadow: "0 24px 48px rgba(0,0,0,0.18)" }}>
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex",
+          alignItems: "center", justifyContent: "center", zIndex: 50, padding: 24, overflowY: "auto" }}
+          onClick={(e) => { if (e.target === e.currentTarget) setShowModal(false); }}>
+          <div className="fade-in" style={{ background: "var(--surface)", borderRadius: "var(--radius-xl)",
+            border: "1px solid var(--border)", padding: 28, width: "100%", maxWidth: 480,
+            boxShadow: "0 24px 48px rgba(0,0,0,0.18)", margin: "auto" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
               <h2 style={{ margin: 0 }}>Create User</h2>
-              <button className="btn btn-ghost" onClick={() => setShowModal(false)} style={{ fontSize: 18, padding: "2px 8px", lineHeight: 1 }}>×</button>
+              <button className="btn" onClick={() => setShowModal(false)} style={{ fontSize: 18, padding: "2px 8px" }}>×</button>
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               <div>
                 <label className="form-label">Full Name *</label>
                 <input className="input" placeholder="e.g. Rahul Sharma" value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })} />
+                  onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
               </div>
               <div>
                 <label className="form-label">Email *</label>
                 <input className="input" type="email" placeholder="user@nutshell.com" value={form.email}
-                  onChange={(e) => setForm({ ...form, email: e.target.value })} />
+                  onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                 <div>
                   <label className="form-label">Password *</label>
                   <input className="input" type="password" placeholder="Min 6 chars" value={form.password}
-                    onChange={(e) => setForm({ ...form, password: e.target.value })} />
+                    onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} />
                 </div>
                 <div>
                   <label className="form-label">Phone</label>
                   <input className="input" placeholder="e.g. 9000000001" value={form.phone}
-                    onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+                    onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} />
                 </div>
               </div>
+
+              {/* Multi-role checkboxes */}
               <div>
-                <label className="form-label">Role *</label>
-                <select className="input" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
-                  <option value="">Select a role...</option>
-                  {ROLES.map((r) => <option key={r} value={r}>{r.replace("_"," ")}</option>)}
-                </select>
+                <label className="form-label">Roles * (select one or more)</label>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, padding: "10px 12px",
+                  border: "1px solid var(--border)", borderRadius: "var(--radius)", background: "var(--bg)" }}>
+                  {ALL_ROLES.map((role) => (
+                    <label key={role} style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 13 }}>
+                      <input type="checkbox" checked={form.roles.includes(role)}
+                        onChange={() => toggleRole(role, form.roles, (r) => setForm((f) => ({ ...f, roles: r })))} />
+                      <span style={{ fontWeight: 500 }}>{role.replace("_", " ")}</span>
+                    </label>
+                  ))}
+                </div>
               </div>
-              {form.role === "SALES" && (
+
+              {/* Module preview */}
+              {form.roles.length > 0 && (
+                <div style={{ padding: "10px 12px", background: "rgba(99,102,241,0.06)",
+                  border: "1px solid rgba(99,102,241,0.2)", borderRadius: "var(--radius)" }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: "var(--accent)", marginBottom: 6 }}>
+                    Modules granted ({createModules.length}):
+                  </div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                    {createModules.map((m) => (
+                      <span key={m} style={{ fontSize: 11, padding: "2px 7px", borderRadius: 4,
+                        background: "rgba(99,102,241,0.12)", color: "var(--accent)", fontWeight: 500 }}>
+                        {m}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {form.roles.includes("SALES") && (
                 <div>
                   <label className="form-label">Assign to BD Head</label>
-                  <select className="input" value={form.managerId} onChange={(e) => setForm({ ...form, managerId: e.target.value })}>
+                  <select className="input" value={form.managerId}
+                    onChange={(e) => setForm((f) => ({ ...f, managerId: e.target.value }))}>
                     <option value="">No manager</option>
                     {bdHeads.map((bd) => <option key={bd.id} value={bd.id}>{bd.name}</option>)}
                   </select>
@@ -339,9 +354,9 @@ Sunrise Public School,45 NH34,Siliguri,West Bengal,Mrs. Sharma,9000000002,CONTAC
               {msg.text && <div className={`alert ${msg.ok ? "alert-success" : "alert-error"}`}>{msg.text}</div>}
 
               <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 4 }}>
-                <button className="btn btn-secondary" onClick={() => setShowModal(false)}>Cancel</button>
+                <button className="btn" onClick={() => setShowModal(false)}>Cancel</button>
                 <button className="btn btn-primary" disabled={submitting} onClick={handleCreate}>
-                  {submitting ? "Creating..." : "Create User"}
+                  {submitting ? "Creating…" : "Create User"}
                 </button>
               </div>
             </div>
@@ -349,49 +364,75 @@ Sunrise Public School,45 NH34,Siliguri,West Bengal,Mrs. Sharma,9000000002,CONTAC
         </div>
       )}
 
-      {/* ── Edit User Modal ── */}
+      {/* Edit User Modal */}
       {editUser && (
-        <div
-          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50, padding: 24 }}
-          onClick={(e) => { if (e.target === e.currentTarget) setEditUser(null); }}
-        >
-          <div className="fade-in" style={{ background: "var(--surface)", borderRadius: "var(--radius-xl)", border: "1px solid var(--border)", padding: 28, width: "100%", maxWidth: 400, boxShadow: "0 24px 48px rgba(0,0,0,0.18)" }}>
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex",
+          alignItems: "center", justifyContent: "center", zIndex: 50, padding: 24, overflowY: "auto" }}
+          onClick={(e) => { if (e.target === e.currentTarget) setEditUser(null); }}>
+          <div className="fade-in" style={{ background: "var(--surface)", borderRadius: "var(--radius-xl)",
+            border: "1px solid var(--border)", padding: 28, width: "100%", maxWidth: 480,
+            boxShadow: "0 24px 48px rgba(0,0,0,0.18)", margin: "auto" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
               <div>
                 <h2 style={{ margin: "0 0 2px" }}>Edit User</h2>
                 <p style={{ margin: 0, fontSize: 13, color: "var(--text-muted)" }}>{editUser.email}</p>
               </div>
-              <button className="btn btn-ghost" onClick={() => setEditUser(null)} style={{ fontSize: 18, padding: "2px 8px", lineHeight: 1 }}>×</button>
+              <button className="btn" onClick={() => setEditUser(null)} style={{ fontSize: 18, padding: "2px 8px" }}>×</button>
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               <div>
                 <label className="form-label">Full Name</label>
                 <input className="input" value={editForm.name}
-                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} />
+                  onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))} />
               </div>
               <div>
                 <label className="form-label">Phone</label>
                 <input className="input" placeholder="e.g. 9000000001" value={editForm.phone}
-                  onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} />
+                  onChange={(e) => setEditForm((f) => ({ ...f, phone: e.target.value }))} />
               </div>
+
+              {/* Multi-role checkboxes */}
               <div>
-                <label className="form-label">Role</label>
-                <select className="input" value={editForm.role}
-                  onChange={(e) => setEditForm({ ...editForm, role: e.target.value })}>
-                  <option value="">Keep current</option>
-                  {ROLES.map((r) => <option key={r} value={r}>{r.replace("_"," ")}</option>)}
-                </select>
+                <label className="form-label">Roles (select one or more)</label>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, padding: "10px 12px",
+                  border: "1px solid var(--border)", borderRadius: "var(--radius)", background: "var(--bg)" }}>
+                  {ALL_ROLES.map((role) => (
+                    <label key={role} style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 13 }}>
+                      <input type="checkbox" checked={editForm.roles.includes(role)}
+                        onChange={() => toggleRole(role, editForm.roles, (r) => setEditForm((f) => ({ ...f, roles: r })))} />
+                      <span style={{ fontWeight: 500 }}>{role.replace("_", " ")}</span>
+                    </label>
+                  ))}
+                </div>
               </div>
+
+              {/* Module preview */}
+              {editForm.roles.length > 0 && (
+                <div style={{ padding: "10px 12px", background: "rgba(99,102,241,0.06)",
+                  border: "1px solid rgba(99,102,241,0.2)", borderRadius: "var(--radius)" }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: "var(--accent)", marginBottom: 6 }}>
+                    Modules granted ({editModules.length}):
+                  </div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                    {editModules.map((m) => (
+                      <span key={m} style={{ fontSize: 11, padding: "2px 7px", borderRadius: 4,
+                        background: "rgba(99,102,241,0.12)", color: "var(--accent)", fontWeight: 500 }}>
+                        {m}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {editMsg.text && (
                 <div className={`alert ${editMsg.ok ? "alert-success" : "alert-error"}`}>{editMsg.text}</div>
               )}
 
               <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 4 }}>
-                <button className="btn btn-secondary" onClick={() => setEditUser(null)}>Cancel</button>
+                <button className="btn" onClick={() => setEditUser(null)}>Cancel</button>
                 <button className="btn btn-primary" disabled={editSubmitting} onClick={saveEdit}>
-                  {editSubmitting ? "Saving..." : "Save Changes"}
+                  {editSubmitting ? "Saving…" : "Save Changes"}
                 </button>
               </div>
             </div>
