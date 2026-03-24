@@ -240,12 +240,20 @@ export default function DocumentEditorPage() {
   const params = useParams();
   const id = params?.id as string;
 
-  const [doc,     setDoc]     = useState<any>(null);
-  const [title,   setTitle]   = useState("");
-  const [loading, setLoading] = useState(true);
-  const [saving,  setSaving]  = useState(false);
-  const [saveLabel, setSaveLabel] = useState("All changes saved");
-  const [error,   setError]   = useState("");
+  const [doc,       setDoc]      = useState<any>(null);
+  const [title,     setTitle]    = useState("");
+  const [loading,   setLoading]  = useState(true);
+  const [saving,    setSaving]   = useState(false);
+  const [saveLabel, setSaveLabel]= useState("All changes saved");
+  const [error,     setError]    = useState("");
+
+  // Google Drive state
+  const [driveOpen,    setDriveOpen]   = useState(false);
+  const [driveFiles,   setDriveFiles]  = useState<any[]>([]);
+  const [driveLoading, setDriveLoading]= useState(false);
+  const [driveMsg,     setDriveMsg]    = useState("");
+  const [backing,      setBacking]     = useState(false);
+
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSaved     = useRef<string>("");
 
@@ -264,6 +272,7 @@ export default function DocumentEditorPage() {
       Color,
     ],
     content: "",
+    immediatelyRender: false,
     editable: true,
     onUpdate: ({ editor: e }) => {
       const html = e.getHTML();
@@ -337,6 +346,58 @@ export default function DocumentEditorPage() {
     setSaving(false);
   }
 
+  /* Google Drive: open import modal */
+  async function openDriveImport() {
+    setDriveOpen(true);
+    setDriveMsg("");
+    if (driveFiles.length) return; // already loaded
+    setDriveLoading(true);
+    try {
+      const res = await fetch("/api/drive?action=list", { credentials: "include" });
+      const data = await res.json();
+      if (!res.ok) { setDriveMsg(data.error ?? "Failed to load Drive files"); return; }
+      setDriveFiles(data.files ?? []);
+    } finally {
+      setDriveLoading(false);
+    }
+  }
+
+  /* Google Drive: import a file */
+  async function importDriveFile(fileId: string) {
+    setDriveLoading(true);
+    setDriveMsg("Importing…");
+    try {
+      const res = await fetch(`/api/drive?action=export&fileId=${fileId}`, { credentials: "include" });
+      const data = await res.json();
+      if (!res.ok || !data.html) { setDriveMsg(data.error ?? "Failed to import"); return; }
+      editor?.commands.setContent(data.html);
+      setSaveLabel("Unsaved changes…");
+      setDriveMsg("Content imported! Review and save.");
+    } finally {
+      setDriveLoading(false);
+    }
+  }
+
+  /* Google Drive: backup current doc */
+  async function backupToDrive() {
+    if (!doc) return;
+    await triggerSave();
+    setBacking(true);
+    setDriveMsg("");
+    try {
+      const res = await fetch("/api/drive", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        credentials: "include", body: JSON.stringify({ documentId: doc.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setDriveMsg(data.error ?? "Backup failed"); return; }
+      setDoc((prev: any) => ({ ...prev, driveFileId: data.driveFileId, driveFileUrl: data.driveFileUrl }));
+      setDriveFiles([]); // reset cache so re-open reflects new file
+    } finally {
+      setBacking(false);
+    }
+  }
+
   /* Counts */
   const wordCount = editor
     ? editor.getText().split(/\s+/).filter(Boolean).length
@@ -391,7 +452,28 @@ export default function DocumentEditorPage() {
         </div>
 
         {/* Right: actions */}
-        <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+        <div style={{ display: "flex", gap: 8, flexShrink: 0, alignItems: "center" }}>
+          {canEdit && (
+            <button className="btn btn-ghost" style={{ fontSize: 12 }}
+              onClick={openDriveImport} title="Import content from Google Drive">
+              <span style={{ marginRight: 4 }}>⬆</span> Import from Drive
+            </button>
+          )}
+          <button
+            className="btn btn-ghost"
+            style={{ fontSize: 12, color: doc?.driveFileId ? "#22c55e" : undefined }}
+            onClick={backupToDrive}
+            disabled={backing}
+            title={doc?.driveFileId ? "Update Drive backup" : "Backup to Google Drive"}
+          >
+            {backing ? "Backing up…" : doc?.driveFileId ? "✓ Drive backup" : "☁ Backup to Drive"}
+          </button>
+          {doc?.driveFileUrl && (
+            <a href={doc.driveFileUrl} target="_blank" rel="noopener noreferrer"
+              className="btn btn-ghost" style={{ fontSize: 12 }} title="Open in Drive">
+              ↗ Drive
+            </a>
+          )}
           {canEdit && (
             <button className="btn btn-secondary" style={{ fontSize: 13 }}
               onClick={() => triggerSave()} disabled={saving}>
@@ -410,6 +492,75 @@ export default function DocumentEditorPage() {
           </a>
         </div>
       </div>
+
+      {/* ── Drive import modal ── */}
+      {driveOpen && (
+        <div style={{
+          position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000,
+          display: "flex", alignItems: "center", justifyContent: "center",
+        }} onClick={(e) => { if (e.target === e.currentTarget) setDriveOpen(false); }}>
+          <div style={{
+            background: "var(--surface)", borderRadius: 10, padding: 24, width: 540,
+            maxWidth: "95vw", boxShadow: "0 20px 60px rgba(0,0,0,0.3)", maxHeight: "80vh",
+            display: "flex", flexDirection: "column",
+          }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <h2 style={{ margin: 0, fontSize: 16 }}>Import from Google Drive</h2>
+              <button className="btn btn-ghost" style={{ fontSize: 18, padding: "2px 8px" }}
+                onClick={() => setDriveOpen(false)}>×</button>
+            </div>
+            <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 12 }}>
+              Files in your team&apos;s shared Drive folder. Select one to import its content into the editor.
+            </p>
+            {driveMsg && (
+              <div className={`alert ${driveMsg.startsWith("Content imported") ? "alert-success" : "alert-error"}`}
+                style={{ marginBottom: 12 }}>
+                {driveMsg}
+              </div>
+            )}
+            {driveLoading ? (
+              <p style={{ color: "var(--text-muted)", textAlign: "center", padding: 20 }}>Loading Drive files…</p>
+            ) : driveFiles.length === 0 ? (
+              <div style={{ textAlign: "center", padding: 24, color: "var(--text-muted)" }}>
+                <p>No files found in the shared Drive folder.</p>
+                <p style={{ fontSize: 12, marginTop: 8 }}>Make sure your Google Drive folder is configured and files are shared with the service account.</p>
+              </div>
+            ) : (
+              <div style={{ overflowY: "auto", flex: 1 }}>
+                {driveFiles.map((f: any) => (
+                  <div key={f.id} style={{
+                    display: "flex", justifyContent: "space-between", alignItems: "center",
+                    padding: "10px 12px", borderBottom: "1px solid var(--border)",
+                    gap: 12,
+                  }}>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontWeight: 500, fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {f.name}
+                      </div>
+                      <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
+                        {f.mimeType === "application/vnd.google-apps.document" ? "Google Doc" : f.mimeType.split("/").pop()}
+                        {f.modifiedTime && ` · ${new Date(f.modifiedTime).toLocaleDateString("en-IN")}`}
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                      {f.webViewLink && (
+                        <a href={f.webViewLink} target="_blank" rel="noopener noreferrer"
+                          className="btn btn-ghost" style={{ fontSize: 11, padding: "3px 8px" }}>
+                          View ↗
+                        </a>
+                      )}
+                      <button className="btn btn-primary" style={{ fontSize: 11, padding: "3px 10px" }}
+                        onClick={() => importDriveFile(f.id)} disabled={driveLoading}>
+                        Import
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ── Rejection banner ── */}
       {doc.status === "REJECTED" && doc.adminComment && (

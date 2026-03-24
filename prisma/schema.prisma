@@ -393,6 +393,10 @@ model ContentTopic {
   status      String   @default("OPEN")  // OPEN | IN_PROGRESS | COMPLETED
   dueDate     DateTime?
 
+  // Book organisation: 4 paperback books per year
+  bookNumber  Int?     // 1 | 2 | 3 | 4
+  year        Int?     // e.g. 2025
+
   assignedToId String
   assignedById String
   assignedTo   User   @relation("TopicAssignee", fields: [assignedToId], references: [id])
@@ -425,6 +429,10 @@ model ContentDocument {
   designedFileName String?
   sentToDesignAt   DateTime?
   publishedAt      DateTime?
+
+  // Google Drive backup
+  driveFileId  String?
+  driveFileUrl String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

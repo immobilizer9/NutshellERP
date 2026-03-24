@@ -49,7 +49,7 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { title, description, productType, classFrom, classTo, assignedToId, dueDate } = body;
+    const { title, description, productType, classFrom, classTo, assignedToId, dueDate, bookNumber, year } = body;
 
     if (!title || !productType || !assignedToId || classFrom == null || classTo == null) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
@@ -61,10 +61,12 @@ export async function POST(req: Request) {
         description: description ?? null,
         productType,
         classFrom: Number(classFrom),
-        classTo: Number(classTo),
+        classTo:   Number(classTo),
         assignedToId,
         assignedById: decoded.userId,
-        dueDate: dueDate ? new Date(dueDate) : null,
+        dueDate:    dueDate ? new Date(dueDate) : null,
+        bookNumber: bookNumber ? Number(bookNumber) : null,
+        year:       year      ? Number(year)       : new Date().getFullYear(),
       },
       include: {
         assignedTo: { select: { id: true, name: true } },
@@ -90,16 +92,18 @@ export async function PATCH(req: Request) {
     }
 
     const body = await req.json();
-    const { id, status, assignedToId, title, description, dueDate } = body;
+    const { id, status, assignedToId, title, description, dueDate, bookNumber, year } = body;
 
     if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
 
     const update: any = {};
-    if (status !== undefined) update.status = status;
+    if (status      !== undefined) update.status      = status;
     if (assignedToId !== undefined) update.assignedToId = assignedToId;
-    if (title !== undefined) update.title = title;
+    if (title       !== undefined) update.title       = title;
     if (description !== undefined) update.description = description;
-    if (dueDate !== undefined) update.dueDate = dueDate ? new Date(dueDate) : null;
+    if (dueDate     !== undefined) update.dueDate     = dueDate ? new Date(dueDate) : null;
+    if (bookNumber  !== undefined) update.bookNumber  = bookNumber ? Number(bookNumber) : null;
+    if (year        !== undefined) update.year        = year ? Number(year) : null;
 
     const topic = await prisma.contentTopic.update({
       where: { id },
