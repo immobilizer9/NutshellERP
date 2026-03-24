@@ -2,15 +2,16 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyToken, getTokenFromRequest } from "@/lib/auth";
 
-export async function PUT(req: Request, { params }: { params: { id: string } }) {
+export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params;
     const token = getTokenFromRequest(req);
     if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const decoded = verifyToken(token);
     if (!decoded) return NextResponse.json({ error: "Invalid token" }, { status: 401 });
 
     const order = await prisma.order.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: { items: true, returns: true },
     });
     if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
@@ -36,13 +37,13 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     }
 
     // Recalculate totals
-    const updatedItems = await prisma.orderItem.findMany({ where: { orderId: params.id } });
+    const updatedItems = await prisma.orderItem.findMany({ where: { orderId: id } });
     const grossAmount  = updatedItems.reduce((s, i) => s + i.total, 0);
     const totalReturns = order.returns.reduce((s, r) => s + r.amount, 0);
     const netAmount    = Math.max(0, grossAmount - totalReturns);
 
     const updated = await prisma.order.update({
-      where: { id: params.id },
+      where: { id },
       data:  { grossAmount, netAmount },
       include: { items: true, returns: true, school: true, createdBy: { select: { id: true, name: true } } },
     });

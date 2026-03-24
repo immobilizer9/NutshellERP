@@ -2,8 +2,9 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyToken, getTokenFromRequest } from "@/lib/auth";
 
-export async function PUT(req: Request, { params }: { params: { id: string } }) {
+export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params;
     const token = getTokenFromRequest(req);
     if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -31,7 +32,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     if (assignedToId  !== undefined) data.assignedToId  = assignedToId || null;
 
     const school = await prisma.school.update({
-      where: { id: params.id },
+      where: { id },
       data,
       include: { assignedTo: { select: { id: true, name: true } } },
     });

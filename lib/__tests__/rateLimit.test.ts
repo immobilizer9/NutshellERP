@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 // Use a fresh import each test by resetting module state via vi.resetModules
 // We directly test the exported function after controlling time via vi.useFakeTimers
