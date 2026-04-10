@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyToken, getTokenFromRequest } from "@/lib/auth";
+import { verifyToken, getTokenFromRequest, hasModule } from "@/lib/auth";
 
 export async function GET(req: Request) {
   try {
@@ -23,8 +23,8 @@ export async function GET(req: Request) {
 
     if (!doc) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-    const isAdmin = decoded.roles.includes("ADMIN");
-    const isDesignTeam = decoded.roles.includes("DESIGN_TEAM");
+    const isAdmin = hasModule(decoded, "USER_MANAGEMENT");
+    const isDesignTeam = hasModule(decoded, "DESIGN_WORK");
     if (!isAdmin && !isDesignTeam && doc.authorId !== decoded.userId) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
@@ -78,9 +78,9 @@ export async function GET(req: Request) {
   <div class="doc-header">
     <h1>${doc.title}</h1>
     <div class="meta">
-      <span><strong>Topic:</strong> ${doc.topic.title}</span>
-      <span class="badge">${doc.topic.productType}</span>
-      <span>Class ${doc.topic.classFrom}–${doc.topic.classTo}</span>
+      <span><strong>Topic:</strong> ${doc.topic?.title ?? "—"}</span>
+      <span class="badge">${doc.topic?.productType ?? "—"}</span>
+      <span>Class ${doc.topic?.classFrom ?? "—"}–${doc.topic?.classTo ?? "—"}</span>
       <span><strong>Status:</strong> ${doc.status}</span>
       <span><strong>Author:</strong> ${doc.author.name}</span>
       <span><strong>Version:</strong> ${doc.version}</span>

@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Badge from "@/app/components/Badge";
 
 export default function BDTasksPage() {
   const [tasks, setTasks]   = useState<any[]>([]);
@@ -65,11 +64,11 @@ export default function BDTasksPage() {
     <>
       <div className="page-header">
         <h1>Task Management</h1>
-        <p>Assign and track tasks across your sales team</p>
+        <p>Assign and track tasks</p>
       </div>
 
       {/* ── Stats ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 24 }}>
+      <div className="stats-grid" style={{ marginBottom: 24 }}>
         {[
           { label: "Total",     value: counts.total,     color: "var(--text-primary)" },
           { label: "Pending",   value: counts.pending,   color: "var(--yellow)" },
@@ -83,131 +82,137 @@ export default function BDTasksPage() {
         ))}
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "340px 1fr", gap: 16 }}>
+      {/* ── Create Task Form ── */}
+      <div className="card" style={{ marginBottom: 20 }}>
+        <h2 style={{ marginBottom: 16 }}>Assign New Task</h2>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <div>
+            <label className="form-label">Title *</label>
+            <input className="input" placeholder="e.g. Visit School 5" value={form.title}
+              onChange={(e) => setForm({ ...form, title: e.target.value })} />
+          </div>
+          <div>
+            <label className="form-label">Assign To *</label>
+            <select className="input" value={form.assignedToId}
+              onChange={(e) => setForm({ ...form, assignedToId: e.target.value })}>
+              <option value="">Select team member...</option>
+              {team.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="form-label">Due Date *</label>
+            <input className="input" type="date" value={form.dueDate}
+              onChange={(e) => setForm({ ...form, dueDate: e.target.value })} />
+          </div>
+          <div>
+            <label className="form-label">Priority</label>
+            <select className="input" value={form.priority}
+              onChange={(e) => setForm({ ...form, priority: e.target.value })}>
+              <option value="LOW">Low</option>
+              <option value="MEDIUM">Medium</option>
+              <option value="HIGH">High</option>
+            </select>
+          </div>
+          <div style={{ gridColumn: "1 / -1" }}>
+            <label className="form-label">Description</label>
+            <textarea className="input" rows={3} placeholder="Optional details..."
+              value={form.description} style={{ resize: "vertical" }}
+              onChange={(e) => setForm({ ...form, description: e.target.value })} />
+          </div>
+        </div>
+        {msg.text && (
+          <div className={`alert ${msg.ok ? "alert-success" : "alert-error"}`} style={{ marginTop: 12 }}>{msg.text}</div>
+        )}
+        <div style={{ marginTop: 14 }}>
+          <button className="btn btn-primary" disabled={submitting} onClick={createTask}>
+            {submitting ? "Creating..." : "Create Task"}
+          </button>
+        </div>
+      </div>
 
-        {/* ── Create Task ── */}
-        <div className="card" style={{ alignSelf: "start" }}>
-          <h2 style={{ marginBottom: 16 }}>Assign New Task</h2>
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <div>
-              <label className="form-label">Title *</label>
-              <input className="input" placeholder="e.g. Visit School 5" value={form.title}
-                onChange={(e) => setForm({ ...form, title: e.target.value })} />
-            </div>
-            <div>
-              <label className="form-label">Assign To *</label>
-              <select className="input" value={form.assignedToId}
-                onChange={(e) => setForm({ ...form, assignedToId: e.target.value })}>
-                <option value="">Select team member...</option>
-                {team.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="form-label">Due Date *</label>
-              <input className="input" type="date" value={form.dueDate}
-                onChange={(e) => setForm({ ...form, dueDate: e.target.value })} />
-            </div>
-            <div>
-              <label className="form-label">Priority</label>
-              <select className="input" value={form.priority}
-                onChange={(e) => setForm({ ...form, priority: e.target.value })}>
-                <option value="LOW">Low</option>
-                <option value="MEDIUM">Medium</option>
-                <option value="HIGH">High</option>
-              </select>
-            </div>
-            <div>
-              <label className="form-label">Description</label>
-              <textarea className="input" rows={3} placeholder="Optional details..."
-                value={form.description} style={{ resize: "vertical" }}
-                onChange={(e) => setForm({ ...form, description: e.target.value })} />
-            </div>
-            {msg.text && (
-              <div className={`alert ${msg.ok ? "alert-success" : "alert-error"}`}>{msg.text}</div>
-            )}
-            <button className="btn btn-primary" disabled={submitting} onClick={createTask}>
-              {submitting ? "Creating..." : "Create Task"}
-            </button>
+      {/* ── Task List ── */}
+      <div className="card">
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+          <h2 style={{ margin: 0 }}>All Tasks</h2>
+          <div style={{ display: "flex", gap: 6 }}>
+            {["ALL", "PENDING", "COMPLETED", "OVERDUE", "HIGH"].map((s) => (
+              <button
+                key={s}
+                onClick={() => setFilterStatus(s)}
+                style={{
+                  padding: "4px 12px", borderRadius: 99, fontSize: 12, fontWeight: 500,
+                  border: "1px solid var(--border)", cursor: "pointer", fontFamily: "inherit",
+                  background: filterStatus === s ? "var(--accent)" : "var(--surface)",
+                  color: filterStatus === s ? "#fff" : "var(--text-secondary)",
+                  transition: "all 0.15s",
+                }}
+              >
+                {s}
+              </button>
+            ))}
           </div>
         </div>
 
-        {/* ── Task List ── */}
-        <div className="card">
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-            <h2 style={{ margin: 0 }}>All Tasks</h2>
-            <div style={{ display: "flex", gap: 6 }}>
-              {["ALL", "PENDING", "COMPLETED", "OVERDUE", "HIGH"].map((s) => (
-                <button
-                  key={s}
-                  onClick={() => setFilterStatus(s)}
-                  style={{
-                    padding: "4px 12px", borderRadius: 99, fontSize: 12, fontWeight: 500,
-                    border: "1px solid var(--border)", cursor: "pointer", fontFamily: "inherit",
-                    background: filterStatus === s ? "var(--accent)" : "var(--surface)",
-                    color: filterStatus === s ? "#fff" : "var(--text-secondary)",
-                    transition: "all 0.15s",
-                  }}
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
+        {loading ? (
+          <div style={{ color: "var(--text-muted)", padding: "40px 0", textAlign: "center" }}>Loading...</div>
+        ) : filtered.length === 0 ? (
+          <div className="empty-state">
+            <p>No {filterStatus !== "ALL" ? filterStatus.toLowerCase() : ""} tasks</p>
+            <p>Create a task using the form above</p>
           </div>
-
-          {loading ? (
-            <p style={{ color: "var(--text-muted)", fontSize: 13 }}>Loading...</p>
-          ) : filtered.length === 0 ? (
-            <div className="empty-state">
-              <p>No {filterStatus !== "ALL" ? filterStatus.toLowerCase() : ""} tasks</p>
-              <p>Create a task using the form on the left</p>
-            </div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {filtered.map((task) => {
-                const overdue = task.status !== "COMPLETED" && new Date(task.dueDate) < now;
-                return (
-                  <div
-                    key={task.id}
-                    style={{
-                      padding: "12px 14px", borderRadius: "var(--radius)",
-                      border: `1px solid ${overdue ? "var(--red-border)" : "var(--border)"}`,
-                      background: overdue ? "var(--red-bg)" : "var(--bg)",
-                    }}
-                  >
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                      <div style={{ flex: 1, minWidth: 0, marginRight: 12 }}>
-                        <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 2, flexWrap: "wrap" }}>
-                          {overdue && (
-                            <span style={{ fontSize: 10, fontWeight: 700, color: "var(--red)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Overdue</span>
-                          )}
-                          {task.priority && task.priority !== "MEDIUM" && (
-                            <span style={{
-                              fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em",
-                              color: task.priority === "HIGH" ? "var(--red)" : "var(--text-muted)",
-                            }}>
-                              {task.priority === "HIGH" ? "! High" : "Low"}
-                            </span>
-                          )}
-                        </div>
-                        <p style={{ fontWeight: 500, margin: 0, fontSize: 13.5 }}>{task.title}</p>
+        ) : (
+          <div className="table-wrap">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Task</th>
+                  <th>Assigned To</th>
+                  <th>Due Date</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((task) => {
+                  const overdue = task.status !== "COMPLETED" && new Date(task.dueDate) < now;
+                  return (
+                    <tr key={task.id}>
+                      <td>
+                        <div style={{ fontWeight: 500, fontSize: 13.5 }}>{task.title}</div>
                         {task.description && (
-                          <p style={{ color: "var(--text-secondary)", fontSize: 13, margin: "2px 0 0" }}>
-                            {task.description}
-                          </p>
+                          <div style={{ color: "var(--text-muted)", fontSize: 12, marginTop: 2 }}>
+                            {task.description.length > 60 ? task.description.slice(0, 60) + "…" : task.description}
+                          </div>
                         )}
-                        <p style={{ color: "var(--text-muted)", fontSize: 12, margin: "4px 0 0" }}>
-                          → {task.assignedTo?.name} · Due {new Date(task.dueDate).toLocaleDateString()}
-                        </p>
-                      </div>
-                      <Badge status={task.status} />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
+                        {overdue && (
+                          <span className="badge badge-red" style={{ marginTop: 4, display: "inline-block" }}>Overdue</span>
+                        )}
+                      </td>
+                      <td style={{ color: "var(--text-secondary)", fontSize: 13 }}>
+                        {task.assignedTo?.name ?? "—"}
+                      </td>
+                      <td style={{ color: overdue ? "var(--red)" : "var(--text-muted)", fontSize: 12.5 }}>
+                        {new Date(task.dueDate).toLocaleDateString()}
+                      </td>
+                      <td>
+                        {task.status === "COMPLETED"
+                          ? <span className="badge badge-green">Completed</span>
+                          : <span className="badge badge-blue">Pending</span>}
+                      </td>
+                      <td>
+                        {task.status !== "COMPLETED" && (
+                          <button className="btn btn-success" style={{ fontSize: 12, padding: "4px 10px" }}>
+                            Complete
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </>
   );

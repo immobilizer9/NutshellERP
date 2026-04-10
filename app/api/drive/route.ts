@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { google } from "googleapis";
 import { prisma } from "@/lib/prisma";
-import { verifyToken, getTokenFromRequest } from "@/lib/auth";
+import { verifyToken, getTokenFromRequest, hasModule } from "@/lib/auth";
 import fs from "fs";
 import path from "path";
 
@@ -99,7 +99,7 @@ export async function GET(req: Request) {
 
     // ── OAuth status (no Drive client needed) ────────────────────────────────
     if (action === "status") {
-      if (!decoded.roles.includes("ADMIN"))
+      if (!hasModule(decoded, "USER_MANAGEMENT"))
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
       const s = readSettings();
       return NextResponse.json({
@@ -114,7 +114,7 @@ export async function GET(req: Request) {
 
     // ── Folder browsing (ADMIN only) ─────────────────────────────────────────
     if (action === "folders") {
-      if (!decoded.roles.includes("ADMIN"))
+      if (!hasModule(decoded, "USER_MANAGEMENT"))
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
       const q = parentId
@@ -189,7 +189,7 @@ export async function POST(req: Request) {
     });
     if (!doc) return NextResponse.json({ error: "Document not found" }, { status: 404 });
 
-    const isAdmin = decoded.roles.includes("ADMIN");
+    const isAdmin = hasModule(decoded, "USER_MANAGEMENT");
     if (!isAdmin && doc.authorId !== decoded.userId) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyToken, getTokenFromRequest } from "@/lib/auth";
+import { verifyToken, getTokenFromRequest, hasModule } from "@/lib/auth";
 
 export async function GET(req: Request) {
   try {
@@ -8,8 +8,8 @@ export async function GET(req: Request) {
     if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const decoded = verifyToken(token);
-    const isAdmin  = decoded?.roles.includes("ADMIN");
-    const isBdHead = decoded?.roles.includes("BD_HEAD");
+    const isAdmin  = hasModule(decoded, "USER_MANAGEMENT");
+    const isBdHead = hasModule(decoded, "TEAM_MANAGEMENT");
     if (!decoded || (!isAdmin && !isBdHead)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
@@ -136,11 +136,38 @@ export async function GET(req: Request) {
       orderBy: { createdAt: "desc" },
       include: { salesUser: { select: { id: true, name: true } } },
     });
-    // Per-rep current-month revenue (for incentive tracker)
+
+    // ── Visits this month per rep ─────────────────────────────────
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const visitsThisMonthRaw = await prisma.visit.findMany({
+      where:  { salesUserId: { in: teamIds }, createdAt: { gte: monthStart } },
+      select: { salesUserId: true },
+    });
+    const visitCountByRep: Record<string, number> = {};
+    for (const v of visitsThisMonthRaw) visitCountByRep[v.salesUserId] = (visitCountByRep[v.salesUserId] ?? 0) + 1;
+
+    // ── Report submitted today per rep ───────────────────────────
+    const todayStart = new Date(now); todayStart.setHours(0, 0, 0, 0);
+    const reportedToday = new Set(
+      reports.filter((r) => new Date(r.createdAt) >= todayStart).map((r) => r.salesUserId)
+    );
+    const reportTodayCount = reportedToday.size;
+    const reportTodayTotal = teamIds.length;
+
+    // ── Team targets this month ───────────────────────────────────
     const currentMonth = now.getMonth();
     const currentYear  = now.getFullYear();
+    const targets = await prisma.target.findMany({
+      where: { userId: { in: teamIds }, month: currentMonth + 1, year: currentYear },
+    });
+    const targetByRep: Record<string, any> = {};
+    for (const t of targets) targetByRep[t.userId] = t;
+
+    const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+    const daysLeft    = daysInMonth - now.getDate();
+
     const salesActivityStatus = team.map((user) => {
-      const latest     = reports.find((r) => r.salesUserId === user.id);
+      const latest       = reports.find((r) => r.salesUserId === user.id);
       const lastActivity = latest?.createdAt ?? null;
       const isInactive   = !lastActivity || Date.now() - new Date(lastActivity).getTime() > 24 * 60 * 60 * 1000;
       const monthRevenue = approvedOrders
@@ -149,8 +176,19 @@ export async function GET(req: Request) {
           return o.createdById === user.id && d.getMonth() === currentMonth && d.getFullYear() === currentYear;
         })
         .reduce((s, o) => s + o.netAmount, 0);
-      return { userId: user.id, name: user.name, lastActivity, isInactive, monthRevenue };
+      const target     = targetByRep[user.id];
+      const targetRev  = target?.revenueTarget ?? 0;
+      const pct        = targetRev > 0 ? Math.round((monthRevenue / targetRev) * 100) : null;
+      const atRisk     = targetRev > 0 && pct !== null && pct < 50 && daysLeft <= 10;
+      return {
+        userId: user.id, name: user.name, lastActivity, isInactive, monthRevenue,
+        targetRevenue: targetRev, achievementPct: pct, atRisk,
+        visitsThisMonth: visitCountByRep[user.id] ?? 0,
+        reportedToday:   reportedToday.has(user.id),
+      };
     });
+
+    const atRiskReps = salesActivityStatus.filter((s) => s.atRisk);
 
     // ── Activity timeline ─────────────────────────────────────────
     const recentOrders = orders.slice(-20);
@@ -212,6 +250,13 @@ export async function GET(req: Request) {
 
       // Activity timeline (combined reports + orders + tasks)
       timeline,
+
+      // Daily report coverage today
+      reportTodayCount,
+      reportTodayTotal,
+
+      // At-risk reps
+      atRiskReps,
 
       // Daily reports (for team review)
       recentReports: reports.slice(0, 50),

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyToken, getTokenFromRequest } from "@/lib/auth";
+import { verifyToken, getTokenFromRequest, hasModule } from "@/lib/auth";
 
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -18,7 +18,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     if (order.status !== "PENDING") {
       return NextResponse.json({ error: "Only PENDING orders can be edited" }, { status: 400 });
     }
-    const isAdmin = decoded.roles.includes("ADMIN");
+    const isAdmin = hasModule(decoded, "USER_MANAGEMENT");
     if (!isAdmin && order.createdById !== decoded.userId) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }

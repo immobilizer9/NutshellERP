@@ -92,7 +92,7 @@ export default function IncentivesPage() {
       {/* ── Table ── */}
       <div className="card">
         {loading ? (
-          <p style={{ color: "var(--text-muted)", fontSize: 13 }}>Loading...</p>
+          <div style={{ color: "var(--text-muted)", padding: "40px 0", textAlign: "center" }}>Loading...</div>
         ) : data.length === 0 ? (
           <div className="empty-state">
             <p>No team members found</p>

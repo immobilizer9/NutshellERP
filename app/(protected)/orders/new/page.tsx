@@ -64,9 +64,10 @@ export default function NewOrderPage() {
   useEffect(()=>{
     if(type!=="ADDITIONAL")return;
     setOrdersLoading(true);
-    fetch("/api/orders/list",{credentials:"include"}).then(r=>r.json())
+    fetch("/api/orders/list?limit=200",{credentials:"include"}).then(r=>r.json())
       .then(d=>{
-        const originals=Array.isArray(d)?d.filter((o:any)=>o.type==="ORIGINAL"&&o.status!=="REJECTED"):[];
+        const list=Array.isArray(d)?d:(d?.orders??[]);
+        const originals=list.filter((o:any)=>o.type==="ORIGINAL"&&o.status!=="REJECTED");
         setExistingOrders(originals);
       }).catch(()=>setExistingOrders([])).finally(()=>setOrdersLoading(false));
   },[type]);
@@ -161,7 +162,7 @@ export default function NewOrderPage() {
   );
 
   return (
-    <div style={{maxWidth:900,margin:"0 auto"}}>
+    <div>
       <div className="page-header">
         <h1>New Order</h1>
         <p>{step===0?"Step 1 of 3 — Select order type":step===1?"Step 2 of 3 — School, vendor & dates":"Step 3 of 3 — Contacts & quantities"}</p>
@@ -190,7 +191,7 @@ export default function NewOrderPage() {
               <h2 style={{marginBottom:6}}>Select the original order</h2>
               <p style={{color:"var(--text-muted)",fontSize:13,margin:"0 0 14px"}}>All school, vendor and contact details will be pre-filled from the selected order.</p>
               {ordersLoading?(
-                <p style={{color:"var(--text-muted)",fontSize:13}}>Loading...</p>
+                <div style={{ color: "var(--text-muted)", padding: "20px 0", textAlign: "center" }}>Loading...</div>
               ):existingOrders.length===0?(
                 <div className="alert alert-info">No original orders found. Create an original order first.</div>
               ):(

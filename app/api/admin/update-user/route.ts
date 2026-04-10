@@ -1,7 +1,7 @@
 // app/api/admin/update-user/route.ts
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyToken, getTokenFromRequest } from "@/lib/auth";
+import { verifyToken, getTokenFromRequest, hasModule } from "@/lib/auth";
 
 const ALL_ROLES = ["ADMIN", "BD_HEAD", "SALES", "CONTENT_TEAM", "TRAINER", "DESIGN_TEAM"];
 
@@ -11,7 +11,7 @@ export async function POST(req: Request) {
     if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const decoded = verifyToken(token);
-    if (!decoded || !decoded.roles.includes("ADMIN")) {
+    if (!decoded || !hasModule(decoded, "USER_MANAGEMENT")) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

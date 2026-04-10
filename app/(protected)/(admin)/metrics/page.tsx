@@ -27,7 +27,7 @@ export default function MetricsPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) return <p style={{ color: "var(--text-muted)" }}>Loading...</p>;
+  if (loading) return <div style={{ color: "var(--text-muted)", padding: "40px 0", textAlign: "center" }}>Loading...</div>;
   if (error)   return <div className="alert alert-error">{error}</div>;
 
   const totalSchoolsInPipeline = Object.values(data.stageCount as Record<string, number>).reduce((s: number, v: any) => s + v, 0);

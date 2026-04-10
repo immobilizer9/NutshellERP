@@ -90,7 +90,7 @@ export default function AuditLogPage() {
 
       <div className="card">
         {loading ? (
-          <p style={{ color: "var(--text-muted)", fontSize: 13 }}>Loading...</p>
+          <div style={{ color: "var(--text-muted)", padding: "40px 0", textAlign: "center" }}>Loading...</div>
         ) : logs.length === 0 ? (
           <div className="empty-state">
             <p>No audit events found</p>

@@ -67,7 +67,7 @@ export default function EventsPage() {
     fetchEvents();
   };
 
-  if (loading) return <p style={{ color: "var(--text-muted)" }}>Loading...</p>;
+  if (loading) return <div style={{ color: "var(--text-muted)", padding: "40px 0", textAlign: "center" }}>Loading...</div>;
 
   return (
     <>

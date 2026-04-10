@@ -264,7 +264,7 @@ export default function AdminSchoolsPage() {
         </div>
 
         {loading ? (
-          <p style={{ color: "var(--text-muted)", fontSize: 13 }}>Loading...</p>
+          <div style={{ color: "var(--text-muted)", padding: "40px 0", textAlign: "center" }}>Loading...</div>
         ) : filtered.length === 0 ? (
           <div className="empty-state">
             <p>{search ? "No schools match your search" : "No schools yet"}</p>

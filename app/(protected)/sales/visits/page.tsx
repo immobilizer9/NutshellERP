@@ -138,12 +138,7 @@ export default function VisitLogPage() {
           </div>
 
           {msg.text && (
-            <div style={{
-              padding: "10px 14px", borderRadius: "var(--radius)", marginBottom: 12,
-              background: msg.ok ? "color-mix(in srgb, var(--green) 12%, transparent)" : "color-mix(in srgb, var(--red) 12%, transparent)",
-              color: msg.ok ? "var(--green)" : "var(--red)",
-              fontSize: 13, border: `1px solid ${msg.ok ? "var(--green)" : "var(--red)"}`,
-            }}>
+            <div className={`alert ${msg.ok ? "alert-success" : "alert-error"}`} style={{ marginBottom: 12 }}>
               {msg.text}
             </div>
           )}
@@ -173,7 +168,7 @@ export default function VisitLogPage() {
         </div>
 
         {loading ? (
-          <p style={{ color: "var(--text-muted)", fontSize: 13 }}>Loading...</p>
+          <div style={{ color: "var(--text-muted)", padding: "40px 0", textAlign: "center" }}>Loading...</div>
         ) : filteredVisits.length === 0 ? (
           <div className="empty-state">
             <p>No visits logged yet</p>
@@ -213,11 +208,11 @@ export default function VisitLogPage() {
                     </td>
                     <td style={{ color: "var(--text-muted)", fontSize: 12.5 }}>
                       {visit.nextVisitDate
-                        ? new Date(visit.nextVisitDate).toLocaleDateString()
+                        ? new Date(visit.nextVisitDate).toLocaleDateString("en-IN", { day:"2-digit", month:"short", year:"numeric" })
                         : <span style={{ color: "var(--text-muted)" }}>—</span>}
                     </td>
                     <td style={{ color: "var(--text-muted)", fontSize: 12.5 }}>
-                      {new Date(visit.createdAt).toLocaleDateString()}
+                      {new Date(visit.createdAt).toLocaleDateString("en-IN", { day:"2-digit", month:"short", year:"numeric" })}
                     </td>
                   </tr>
                 ))}

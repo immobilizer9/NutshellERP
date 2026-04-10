@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyToken, getTokenFromRequest } from "@/lib/auth";
+import { verifyToken, getTokenFromRequest, hasModule } from "@/lib/auth";
 import { generateOrderPdf } from "@/lib/generateOrderPdf";
 import { sendOrderEmail } from "@/lib/sendOrderEmail";
 import { writeAuditLog } from "@/lib/auditLog";
@@ -36,7 +36,7 @@ export async function POST(req: Request) {
     if (!decoded) return NextResponse.json({ error: "Invalid token" }, { status: 401 });
 
     // ✅ Both SALES and BD_HEAD can create orders
-    if (!decoded.roles.includes("SALES") && !decoded.roles.includes("BD_HEAD")) {
+    if (!hasModule(decoded, "ORDERS")) {
       return NextResponse.json(
         { error: "Only sales representatives and BD Heads can create orders" },
         { status: 403 }

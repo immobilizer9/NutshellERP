@@ -35,9 +35,9 @@ export default function ReceivablesPage() {
 
   const fetchOrders = () => {
     setLoading(true);
-    fetch("/api/orders/list", { credentials: "include" })
+    fetch("/api/orders/list?status=APPROVED&limit=200", { credentials: "include" })
       .then((r) => r.json())
-      .then((d) => setOrders(Array.isArray(d) ? d.filter((o: any) => o.status === "APPROVED") : []))
+      .then((d) => setOrders(Array.isArray(d) ? d : (d?.orders ?? [])))
       .finally(() => setLoading(false));
   };
 
@@ -193,7 +193,7 @@ export default function ReceivablesPage() {
 
       {/* Table */}
       {loading ? (
-        <p style={{ color: "var(--text-muted)" }}>Loading…</p>
+        <div style={{ color: "var(--text-muted)", padding: "40px 0", textAlign: "center" }}>Loading...</div>
       ) : filtered.length === 0 ? (
         <div className="card" style={{ textAlign: "center", padding: 40, color: "var(--text-muted)" }}>
           No orders match the current filters.

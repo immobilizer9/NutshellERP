@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyToken, getTokenFromRequest } from "@/lib/auth";
+import { verifyToken, getTokenFromRequest, hasModule } from "@/lib/auth";
 
 export async function GET(req: Request) {
   try {
@@ -34,7 +34,7 @@ export async function POST(req: Request) {
     }
 
     // Only admins can create notifications for other users
-    const isAdmin = decoded.roles.includes("ADMIN");
+    const isAdmin = hasModule(decoded, "USER_MANAGEMENT");
     if (!isAdmin && userId !== decoded.userId) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }

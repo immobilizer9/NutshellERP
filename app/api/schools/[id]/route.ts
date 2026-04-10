@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyToken, getTokenFromRequest } from "@/lib/auth";
+import { verifyToken, getTokenFromRequest, hasModule } from "@/lib/auth";
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -17,40 +17,54 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       include: {
         assignedTo: { select: { id: true, name: true, email: true, phone: true } },
         orders: {
+          where: { deletedAt: null },
           orderBy: { createdAt: "desc" },
           include: {
             createdBy: { select: { id: true, name: true } },
             items:     true,
+            pocs:      true,
+            returns:   true,
           },
         },
         visits: {
           orderBy: { createdAt: "desc" },
-          take: 20,
-          include: {
-            salesUser: { select: { id: true, name: true } },
-          },
+          take: 50,
+          include: { salesUser: { select: { id: true, name: true } } },
         },
         events: {
           orderBy: { date: "desc" },
-          take: 20,
-          include: {
-            createdBy: { select: { id: true, name: true } },
-          },
+          take: 50,
+          include: { createdBy: { select: { id: true, name: true } } },
         },
         competitorNotes: {
           orderBy: { createdAt: "desc" },
-          include: {
-            createdBy: { select: { id: true, name: true } },
-          },
+          include: { createdBy: { select: { id: true, name: true } } },
+        },
+        activities: {
+          orderBy: { scheduledDate: "desc" },
+          take: 50,
+          include: { user: { select: { id: true, name: true } } },
+        },
+        quizSessions: {
+          orderBy: { scheduledDate: "desc" },
+          take: 20,
+          include: { conductedBy: { select: { id: true, name: true } } },
+        },
+        trainingSessions: {
+          orderBy: { scheduledDate: "desc" },
+          take: 20,
+          include: { conductedBy: { select: { id: true, name: true } } },
         },
       },
     });
 
     if (!school) return NextResponse.json({ error: "School not found" }, { status: 404 });
 
-    // SALES: can only see their assigned schools
-    if (decoded.roles.includes("SALES") && school.assignedToId !== decoded.userId) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    // SALES: can only see their own assigned schools
+    if (!hasModule(decoded, "TEAM_MANAGEMENT") && !hasModule(decoded, "USER_MANAGEMENT")) {
+      if (school.assignedToId !== decoded.userId) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
     }
 
     return NextResponse.json(school);

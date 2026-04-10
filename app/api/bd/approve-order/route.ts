@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyToken, getTokenFromRequest } from "@/lib/auth";
+import { verifyToken, getTokenFromRequest, hasModule } from "@/lib/auth";
 import { sendOrderEmail } from "@/lib/sendOrderEmail";
+import { writeAuditLog } from "@/lib/auditLog";
 
 export async function POST(req: Request) {
   try {
@@ -9,7 +10,7 @@ export async function POST(req: Request) {
     if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const decoded = verifyToken(token);
-    if (!decoded || (!decoded.roles.includes("BD_HEAD") && !decoded.roles.includes("ADMIN"))) {
+    if (!decoded || (!hasModule(decoded, "TEAM_MANAGEMENT"))) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -19,7 +20,7 @@ export async function POST(req: Request) {
     const order = await prisma.order.findUnique({
       where: { id: orderId },
       include: {
-        school:    { select: { name: true } },
+        school:    { select: { id: true, name: true, pipelineStage: true } },
         createdBy: { select: { id: true, name: true, email: true, phone: true, managerId: true, organizationId: true } },
         items:     { select: { className: true, quantity: true, unitPrice: true, total: true } },
       },
@@ -28,7 +29,7 @@ export async function POST(req: Request) {
     if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
 
     // BD_HEAD can only approve orders from their own team
-    if (decoded.roles.includes("BD_HEAD") && order.createdBy.managerId !== decoded.userId) {
+    if (!hasModule(decoded, "USER_MANAGEMENT") && order.createdBy.managerId !== decoded.userId) {
       return NextResponse.json({ error: "Not allowed" }, { status: 403 });
     }
 
@@ -43,6 +44,29 @@ export async function POST(req: Request) {
       where: { id: orderId },
       data: { status: "APPROVED" },
     });
+
+    // Advance pipeline stage if still early-stage
+    if (order.school.pipelineStage === "LEAD" || order.school.pipelineStage === "CONTACTED") {
+      await prisma.school.update({
+        where: { id: order.school.id },
+        data:  { pipelineStage: "PROPOSAL_SENT" },
+      });
+    }
+
+    writeAuditLog({
+      userId:         decoded.userId,
+      organizationId: order.createdBy.organizationId,
+      action:         "ORDER_APPROVED",
+      entity:         "Order",
+      entityId:       orderId,
+      metadata: {
+        schoolName:  order.school.name,
+        netAmount:   order.netAmount,
+        grossAmount: order.grossAmount,
+        productType: order.productType,
+        createdById: order.createdBy.id,
+      },
+    }).catch(() => {});
 
     // Notify the sales rep
     await (prisma as any).notification.create({

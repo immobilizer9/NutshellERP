@@ -18,9 +18,9 @@ export default function DesignDashboardPage() {
   const [msgs,    setMsgs]    = useState<Record<string, string>>({});
 
   useEffect(() => {
-    fetch("/api/content/documents?status=DESIGN_SENT", { credentials: "include" })
+    fetch("/api/content/documents?status=DESIGN_SENT&limit=200", { credentials: "include" })
       .then((r) => r.json())
-      .then((d) => setDocs(Array.isArray(d) ? d : []))
+      .then((d) => setDocs(Array.isArray(d) ? d : (d?.docs ?? [])))
       .finally(() => setLoading(false));
   }, []);
 
@@ -60,7 +60,7 @@ export default function DesignDashboardPage() {
     }
   }
 
-  if (loading) return <p style={{ color: "var(--text-muted)" }}>Loading...</p>;
+  if (loading) return <div style={{ color: "var(--text-muted)", padding: "40px 0", textAlign: "center" }}>Loading...</div>;
 
   return (
     <>
@@ -105,7 +105,7 @@ export default function DesignDashboardPage() {
                   >
                     Download Content
                   </a>
-                  <Link href={`/content/documents/${d.id}`} className="btn btn-ghost" style={{ fontSize: 12, padding: "4px 10px" }}>
+                  <Link href={`/content/workspace/${d.id}`} className="btn btn-ghost" style={{ fontSize: 12, padding: "4px 10px" }}>
                     View Doc
                   </Link>
                 </div>

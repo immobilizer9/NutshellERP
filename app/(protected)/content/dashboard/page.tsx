@@ -24,18 +24,18 @@ export default function ContentDashboardPage() {
   useEffect(() => {
     Promise.all([
       fetch("/api/auth/me",          { credentials: "include" }).then((r) => r.json()),
-      fetch("/api/content/topics",   { credentials: "include" }).then((r) => r.json()),
-      fetch("/api/content/documents",{ credentials: "include" }).then((r) => r.json()),
+      fetch("/api/content/topics?limit=200",    { credentials: "include" }).then((r) => r.json()),
+      fetch("/api/content/documents?limit=200", { credentials: "include" }).then((r) => r.json()),
     ])
       .then(([me, t, d]) => {
         setUser(me?.user ?? null);
-        setTopics(Array.isArray(t) ? t : []);
-        setDocs(Array.isArray(d) ? d : []);
+        setTopics(Array.isArray(t) ? t : (t?.topics ?? []));
+        setDocs(Array.isArray(d) ? d : (d?.docs ?? []));
       })
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) return <p style={{ color: "var(--text-muted)" }}>Loading...</p>;
+  if (loading) return <div style={{ color: "var(--text-muted)", padding: "40px 0", textAlign: "center" }}>Loading...</div>;
 
   const drafts    = docs.filter((d) => d.status === "DRAFT").length;
   const submitted = docs.filter((d) => d.status === "SUBMITTED").length;
@@ -136,7 +136,7 @@ export default function ContentDashboardPage() {
                   {recentDocs.map((d) => (
                     <tr key={d.id}>
                       <td>
-                        <Link href={`/content/documents/${d.id}`} style={{ color: "var(--accent)", fontWeight: 500 }}>
+                        <Link href={`/content/workspace/${d.id}`} style={{ color: "var(--accent)", fontWeight: 500 }}>
                           {d.title}
                         </Link>
                       </td>

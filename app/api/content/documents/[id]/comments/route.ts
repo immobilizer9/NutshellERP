@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyToken, getTokenFromRequest } from "@/lib/auth";
+import { verifyToken, getTokenFromRequest, hasModule } from "@/lib/auth";
 
 /** GET /api/content/documents/[id]/comments */
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -79,7 +79,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
-    const isAdmin  = decoded.roles.includes("ADMIN");
+    const isAdmin  = hasModule(decoded, "USER_MANAGEMENT");
     const isAuthor = comment.authorId === decoded.userId;
 
     if (!isAdmin && !isAuthor) {

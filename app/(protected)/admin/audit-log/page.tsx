@@ -99,44 +99,44 @@ export default function AuditLogPage() {
       <div className="page-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <div>
           <h1>Audit Log</h1>
-          <p>{total.toLocaleString()} events recorded</p>
+          <p>Track all system actions</p>
         </div>
         <button className="btn" onClick={handleExport} disabled={exporting} style={{ fontSize: 12.5 }}>
           {exporting ? "Exporting…" : "↓ Export CSV"}
         </button>
       </div>
 
-      {/* Date range filter */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 12, alignItems: "center", flexWrap: "wrap" }}>
-        <label style={{ fontSize: 12.5, color: "var(--text-muted)", flexShrink: 0 }}>Date range:</label>
-        <input type="date" className="input" style={{ width: 150, fontSize: 13 }}
-          value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
-        <span style={{ color: "var(--text-muted)", fontSize: 13 }}>→</span>
-        <input type="date" className="input" style={{ width: 150, fontSize: 13 }}
-          value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
-        <button className="btn btn-primary" style={{ fontSize: 12 }} onClick={applyDates}>Apply</button>
-        {(dateFrom || dateTo) && (
-          <button className="btn" style={{ fontSize: 12 }} onClick={clearDates}>Clear</button>
-        )}
-      </div>
-
-      {/* Action filter chips */}
-      <div style={{ display: "flex", gap: 6, marginBottom: 20, flexWrap: "wrap" }}>
-        <button onClick={() => handleFilter("")} className="btn"
-          style={{ fontSize: 12, background: filter === "" ? "var(--accent)" : undefined, color: filter === "" ? "#fff" : undefined }}>
-          All
-        </button>
-        {ALL_ACTIONS.map((a) => (
-          <button key={a} onClick={() => handleFilter(a)} className="btn"
-            style={{ fontSize: 11.5, background: filter === a ? "var(--accent)" : undefined, color: filter === a ? "#fff" : undefined }}>
-            {a.replaceAll("_", " ")}
+      {/* Filters */}
+      <div className="card" style={{ marginBottom: 16 }}>
+        <div style={{ display: "flex", gap: 8, marginBottom: 12, alignItems: "center", flexWrap: "wrap" }}>
+          <label className="form-label" style={{ margin: 0, flexShrink: 0 }}>Date range:</label>
+          <input type="date" className="input" style={{ width: 150, fontSize: 13 }}
+            value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+          <span style={{ color: "var(--text-muted)", fontSize: 13 }}>→</span>
+          <input type="date" className="input" style={{ width: 150, fontSize: 13 }}
+            value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+          <button className="btn btn-primary" style={{ fontSize: 12 }} onClick={applyDates}>Apply</button>
+          {(dateFrom || dateTo) && (
+            <button className="btn" style={{ fontSize: 12 }} onClick={clearDates}>Clear</button>
+          )}
+        </div>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          <button onClick={() => handleFilter("")} className="btn"
+            style={{ fontSize: 12, background: filter === "" ? "var(--accent)" : undefined, color: filter === "" ? "#fff" : undefined }}>
+            All
           </button>
-        ))}
+          {ALL_ACTIONS.map((a) => (
+            <button key={a} onClick={() => handleFilter(a)} className="btn"
+              style={{ fontSize: 11.5, background: filter === a ? "var(--accent)" : undefined, color: filter === a ? "#fff" : undefined }}>
+              {a.replaceAll("_", " ")}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="card">
         {loading ? (
-          <p style={{ color: "var(--text-muted)", fontSize: 13 }}>Loading…</p>
+          <div style={{ color: "var(--text-muted)", padding: "40px 0", textAlign: "center" }}>Loading...</div>
         ) : logs.length === 0 ? (
           <div className="empty-state">
             <p>No audit events found</p>

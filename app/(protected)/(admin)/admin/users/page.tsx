@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Badge from "@/app/components/Badge";
 
 const ALL_ROLES = ["ADMIN", "BD_HEAD", "SALES", "CONTENT_TEAM", "TRAINER", "DESIGN_TEAM"];
 
@@ -181,22 +180,22 @@ export default function UsersPage() {
     <>
       <div className="page-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <div>
-          <h1>User Management</h1>
-          <p>Manage users, roles, and bulk-import schools</p>
+          <h1>Users</h1>
+          <p>Manage team members and access</p>
         </div>
         <button className="btn btn-primary" onClick={() => setShowModal(true)}>+ Create User</button>
       </div>
 
       {/* Stats */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 24 }}>
-        <div className="card" style={{ textAlign: "center", padding: "12px 8px" }}>
-          <div style={{ fontSize: 22, fontWeight: 700 }}>{users.length}</div>
-          <div style={{ fontSize: 12, color: "var(--text-muted)" }}>Total Users</div>
+      <div className="stats-grid" style={{ marginBottom: 24 }}>
+        <div className="stat-card">
+          <div className="stat-label">Total Users</div>
+          <div className="stat-value">{users.length || "—"}</div>
         </div>
         {roleCounts.slice(0, 3).map(({ role, count }) => (
-          <div key={role} className="card" style={{ textAlign: "center", padding: "12px 8px" }}>
-            <div style={{ fontSize: 22, fontWeight: 700 }}>{count}</div>
-            <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{role.replace("_", " ")}</div>
+          <div key={role} className="stat-card">
+            <div className="stat-label">{role.replace(/_/g, " ")}</div>
+            <div className="stat-value">{count || "—"}</div>
           </div>
         ))}
       </div>
@@ -248,7 +247,12 @@ export default function UsersPage() {
       <div className="card">
         <h2 style={{ marginBottom: 14 }}>All Users</h2>
         {loading ? (
-          <p style={{ color: "var(--text-muted)", fontSize: 13 }}>Loading…</p>
+          <div style={{ color: "var(--text-muted)", padding: "40px 0", textAlign: "center" }}>Loading...</div>
+        ) : filtered.length === 0 ? (
+          <div className="empty-state">
+            <p>No users found</p>
+            <p>Create a user or adjust your search</p>
+          </div>
         ) : (
           <div className="table-wrap">
             <table className="data-table">
@@ -271,21 +275,29 @@ export default function UsersPage() {
                     <td style={{ color: "var(--text-muted)", fontSize: 13 }}>{user.phone ?? "—"}</td>
                     <td>
                       <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-                        {user.roles?.map((r: any) => <Badge key={r.role.name} status={r.role.name} />)}
+                        {user.roles?.map((r: any) => (
+                          <span key={r.role.name} className="badge badge-indigo" style={{ fontSize: 11 }}>
+                            {r.role.name.replace(/_/g, " ")}
+                          </span>
+                        ))}
                       </div>
                     </td>
-                    <td><Badge status={user.isActive ? "ACTIVE" : "INACTIVE"} /></td>
+                    <td>
+                      <span className={`badge ${user.isActive ? "badge-green" : "badge-red"}`}>
+                        {user.isActive ? "Active" : "Inactive"}
+                      </span>
+                    </td>
                     <td style={{ color: "var(--text-muted)", fontSize: 12.5 }}>{new Date(user.createdAt).toLocaleDateString()}</td>
                     <td>
                       <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                        <button className="btn" style={{ fontSize: 12, padding: "3px 10px" }} onClick={() => openEdit(user)}>Edit</button>
-                        <button className="btn" style={{ fontSize: 12, padding: "3px 10px" }}
+                        <button className="btn btn-secondary" style={{ fontSize: 12, padding: "4px 10px" }} onClick={() => openEdit(user)}>Edit</button>
+                        <button className="btn btn-secondary" style={{ fontSize: 12, padding: "4px 10px" }}
                           onClick={() => { setResetUser(user); setResetPw(""); setResetMsg({ text: "", ok: false }); }}>
                           Reset PW
                         </button>
                         <button
                           className={`btn ${user.isActive ? "btn-danger" : "btn-success"}`}
-                          style={{ fontSize: 12, padding: "3px 10px" }}
+                          style={{ fontSize: 12, padding: "4px 10px" }}
                           onClick={() => toggleActive(user)}>
                           {user.isActive ? "Deactivate" : "Activate"}
                         </button>

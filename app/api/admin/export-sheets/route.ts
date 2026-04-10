@@ -17,7 +17,7 @@
 import { NextResponse } from "next/server";
 import { google } from "googleapis";
 import { prisma } from "@/lib/prisma";
-import { verifyToken, getTokenFromRequest } from "@/lib/auth";
+import { verifyToken, getTokenFromRequest, hasModule } from "@/lib/auth";
 
 export async function POST(req: Request) {
   try {
@@ -27,10 +27,7 @@ export async function POST(req: Request) {
     const decoded = verifyToken(token);
     if (!decoded) return NextResponse.json({ error: "Invalid token" }, { status: 401 });
 
-    const isAllowed =
-      decoded.roles.includes("ADMIN") || decoded.roles.includes("BD_HEAD");
-
-    if (!isAllowed) {
+    if (!hasModule(decoded, "EXPORTS")) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -38,7 +35,7 @@ export async function POST(req: Request) {
     // BD_HEAD sees only their team's orders; ADMIN sees all
     let orderWhere: any = { status: "APPROVED" };
 
-    if (!decoded.roles.includes("ADMIN")) {
+    if (!hasModule(decoded, "USER_MANAGEMENT")) {
       const team = await prisma.user.findMany({
         where:  { managerId: decoded.userId },
         select: { id: true },

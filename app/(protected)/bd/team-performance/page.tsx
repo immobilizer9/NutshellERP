@@ -14,33 +14,9 @@ function progressColor(pct: number): string {
 }
 
 function StatusBadge({ pct }: { pct: number }) {
-  let label: string;
-  let bg: string;
-  let color: string;
-
-  if (pct >= 75) {
-    label = "ON TRACK";
-    bg    = "color-mix(in srgb, var(--green) 15%, transparent)";
-    color = "var(--green)";
-  } else if (pct >= 50) {
-    label = "AT RISK";
-    bg    = "color-mix(in srgb, var(--yellow) 18%, transparent)";
-    color = "var(--yellow)";
-  } else {
-    label = "BEHIND";
-    bg    = "color-mix(in srgb, var(--red) 15%, transparent)";
-    color = "var(--red)";
-  }
-
-  return (
-    <span style={{
-      display: "inline-block", padding: "2px 9px", borderRadius: 99,
-      fontSize: 11, fontWeight: 700, letterSpacing: "0.05em",
-      background: bg, color,
-    }}>
-      {label}
-    </span>
-  );
+  if (pct >= 75) return <span className="badge badge-green">On Track</span>;
+  if (pct >= 50) return <span className="badge badge-yellow">At Risk</span>;
+  return <span className="badge badge-red">Behind</span>;
 }
 
 export default function TeamPerformancePage() {
@@ -104,7 +80,7 @@ export default function TeamPerformancePage() {
       </div>
 
       {loading ? (
-        <p style={{ color: "var(--text-muted)", fontSize: 13 }}>Loading...</p>
+        <div style={{ color: "var(--text-muted)", padding: "40px 0", textAlign: "center" }}>Loading...</div>
       ) : (
         <>
           {/* Team summary cards */}

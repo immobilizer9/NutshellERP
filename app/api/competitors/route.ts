@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyToken, getTokenFromRequest } from "@/lib/auth";
+import { verifyToken, getTokenFromRequest, hasModule } from "@/lib/auth";
 
 // GET /api/competitors?schoolId=...
 export async function GET(req: Request) {
@@ -18,7 +18,7 @@ export async function GET(req: Request) {
     if (schoolId) where.schoolId = schoolId;
 
     // SALES reps can only see notes for their assigned schools
-    if (decoded.roles.includes("SALES")) {
+    if (hasModule(decoded, "ORDERS") && !hasModule(decoded, "TEAM_MANAGEMENT")) {
       const mySchools = await prisma.school.findMany({
         where:  { assignedToId: decoded.userId },
         select: { id: true },
@@ -101,8 +101,8 @@ export async function DELETE(req: Request) {
     const existing = await (prisma as any).competitorNote.findUnique({ where: { id } });
     if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-    const isAdmin = decoded.roles.includes("ADMIN");
-    const isBD    = decoded.roles.includes("BD_HEAD");
+    const isAdmin = hasModule(decoded, "USER_MANAGEMENT");
+    const isBD    = hasModule(decoded, "TEAM_MANAGEMENT");
     if (!isAdmin && !isBD && existing.createdById !== decoded.userId) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }

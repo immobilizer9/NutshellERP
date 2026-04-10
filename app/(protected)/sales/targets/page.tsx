@@ -22,11 +22,11 @@ export default function SalesTargetsPage() {
     setLoading(true);
     const [tRes, oRes] = await Promise.all([
       fetch(`/api/targets?month=${month}&year=${year}`, { credentials: "include" }).then((r) => r.json()),
-      fetch("/api/orders/list", { credentials: "include" }).then((r) => r.json()),
+      fetch("/api/orders/list?limit=200", { credentials: "include" }).then((r) => r.json()),
     ]);
     const targetsArr = Array.isArray(tRes) ? tRes : [];
     setTarget(targetsArr.length > 0 ? targetsArr[0] : null);
-    setOrders(Array.isArray(oRes) ? oRes : []);
+    setOrders(Array.isArray(oRes) ? oRes : (oRes?.orders ?? []));
     setLoading(false);
   };
 
@@ -101,7 +101,7 @@ export default function SalesTargetsPage() {
       </div>
 
       {loading ? (
-        <p style={{ color: "var(--text-muted)", fontSize: 13 }}>Loading...</p>
+        <div style={{ color: "var(--text-muted)", padding: "40px 0", textAlign: "center" }}>Loading...</div>
       ) : !target ? (
         <div className="card" style={{ textAlign: "center", padding: "40px 24px", color: "var(--text-muted)" }}>
           <p style={{ fontSize: 16, fontWeight: 600, marginBottom: 6 }}>No target set for this month</p>

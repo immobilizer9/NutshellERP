@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyToken, getTokenFromRequest } from "@/lib/auth";
+import { verifyToken, getTokenFromRequest, hasModule } from "@/lib/auth";
 
 export async function GET(req: Request) {
   try {
@@ -16,9 +16,9 @@ export async function GET(req: Request) {
 
     let where: any = {};
 
-    if (decoded.roles.includes("SALES") || decoded.roles.includes("TRAINER")) {
+    if (hasModule(decoded, "ORDERS") && !hasModule(decoded, "TEAM_MANAGEMENT") || hasModule(decoded, "QUIZ_SESSIONS")) {
       where.createdById = decoded.userId;
-    } else if (decoded.roles.includes("BD_HEAD")) {
+    } else if (hasModule(decoded, "TEAM_MANAGEMENT")) {
       const team = await prisma.user.findMany({
         where: { managerId: decoded.userId },
         select: { id: true },
@@ -104,7 +104,7 @@ export async function DELETE(req: Request) {
     const event = await prisma.schoolEvent.findUnique({ where: { id } });
     if (!event) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-    const isAdmin = decoded.roles.includes("ADMIN");
+    const isAdmin = hasModule(decoded, "USER_MANAGEMENT");
     if (!isAdmin && event.createdById !== decoded.userId) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }

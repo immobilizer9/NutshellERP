@@ -85,7 +85,7 @@ export default function ReturnsPage() {
       </div>
 
       {loading ? (
-        <p style={{ color: "var(--text-muted)", fontSize: 13 }}>Loading...</p>
+        <div style={{ color: "var(--text-muted)", padding: "40px 0", textAlign: "center" }}>Loading...</div>
       ) : returns.length === 0 ? (
         <div className="empty-state">
           <p>No returns found</p>

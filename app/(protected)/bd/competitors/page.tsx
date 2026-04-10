@@ -188,7 +188,7 @@ export default function CompetitorDashboard() {
           </div>
 
           {loading ? (
-            <p style={{ color: "var(--text-muted)", fontSize: 13 }}>Loading…</p>
+            <div style={{ color: "var(--text-muted)", padding: "40px 0", textAlign: "center" }}>Loading...</div>
           ) : filtered.length === 0 ? (
             <div className="empty-state"><p>No competitor notes found</p></div>
           ) : (

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyToken, getTokenFromRequest } from "@/lib/auth";
+import { verifyToken, getTokenFromRequest, hasModule } from "@/lib/auth";
 
 // GET /api/delivery-alerts
 // Returns APPROVED orders with deliveryDate within the next N days (default 7)
@@ -24,9 +24,9 @@ export async function GET(req: Request) {
 
     let createdByWhere: any = undefined;
 
-    if (decoded.roles.includes("SALES")) {
+    if (hasModule(decoded, "ORDERS") && !hasModule(decoded, "TEAM_MANAGEMENT")) {
       createdByWhere = decoded.userId;
-    } else if (decoded.roles.includes("BD_HEAD")) {
+    } else if (hasModule(decoded, "TEAM_MANAGEMENT")) {
       const team = await prisma.user.findMany({
         where:  { managerId: decoded.userId },
         select: { id: true },

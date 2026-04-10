@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyToken, getTokenFromRequest } from "@/lib/auth";
+import { verifyToken, getTokenFromRequest, hasModule } from "@/lib/auth";
 
 export async function GET(req: Request) {
   try {
@@ -18,6 +18,7 @@ export async function GET(req: Request) {
 
     // ✅ Any authenticated user can list schools (SALES needs this for order creation)
     const schools = await prisma.school.findMany({
+      where:   { deletedAt: null },
       orderBy: { name: "asc" },
       include: {
         assignedTo: { select: { id: true, name: true } },
@@ -45,7 +46,7 @@ export async function POST(req: Request) {
     const decoded = verifyToken(token);
 
     // ✅ Only BD_HEAD or ADMIN can create schools
-    if (!decoded || (!decoded.roles.includes("BD_HEAD") && !decoded.roles.includes("ADMIN"))) {
+    if (!decoded || (!hasModule(decoded, "SCHOOLS"))) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

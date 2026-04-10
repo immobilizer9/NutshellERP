@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyToken, getTokenFromRequest } from "@/lib/auth";
+import { verifyToken, getTokenFromRequest, hasModule } from "@/lib/auth";
 
 export async function GET(req: Request) {
   try {
     const token = getTokenFromRequest(req);
     if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const decoded = verifyToken(token);
-    const isAdmin  = decoded?.roles.includes("ADMIN");
-    const isBdHead = decoded?.roles.includes("BD_HEAD");
+    const isAdmin  = hasModule(decoded, "USER_MANAGEMENT");
+    const isBdHead = hasModule(decoded, "TEAM_MANAGEMENT");
     if (!decoded || (!isAdmin && !isBdHead)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
     const { searchParams } = new URL(req.url);

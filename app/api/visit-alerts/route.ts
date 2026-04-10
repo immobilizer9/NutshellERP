@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyToken, getTokenFromRequest } from "@/lib/auth";
+import { verifyToken, getTokenFromRequest, hasModule } from "@/lib/auth";
 
 // GET /api/visit-alerts
 // Returns schools that haven't been visited in 30+ days (or never visited)
@@ -21,9 +21,9 @@ export async function GET(req: Request) {
 
     let schoolWhere: any = {};
 
-    if (decoded.roles.includes("SALES")) {
+    if (hasModule(decoded, "ORDERS") && !hasModule(decoded, "TEAM_MANAGEMENT")) {
       schoolWhere.assignedToId = decoded.userId;
-    } else if (decoded.roles.includes("BD_HEAD")) {
+    } else if (hasModule(decoded, "TEAM_MANAGEMENT")) {
       const team = await prisma.user.findMany({
         where:  { managerId: decoded.userId },
         select: { id: true },

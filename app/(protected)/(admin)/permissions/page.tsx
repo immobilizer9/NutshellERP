@@ -59,7 +59,7 @@ export default function PermissionsPage() {
     }
   };
 
-  if (loading) return <p style={{ color: "var(--text-muted)", padding: "40px 0" }}>Loading...</p>;
+  if (loading) return <div style={{ color: "var(--text-muted)", padding: "40px 0", textAlign: "center" }}>Loading...</div>;
 
   const roles       = data?.roles       ?? [];
   const permissions = data?.permissions ?? [];

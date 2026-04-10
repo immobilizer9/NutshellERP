@@ -1,18 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 
-const STATUS_BADGE: Record<string, string> = {
-  OPEN:        "badge-blue",
-  IN_PROGRESS: "badge-yellow",
-  COMPLETED:   "badge-green",
-  DRAFT:       "badge-gray",
-  SUBMITTED:   "badge-yellow",
-  APPROVED:    "badge-green",
-  REJECTED:    "badge-red",
-  DESIGN_SENT: "badge-indigo",
-  PUBLISHED:   "badge-blue",
+const STATUS_BADGE: Record<string, { bg: string; color: string }> = {
+  DRAFT:       { bg: "rgba(156,163,175,0.15)", color: "#6b7280" },
+  SUBMITTED:   { bg: "rgba(202,138,4,0.12)",   color: "#b45309" },
+  APPROVED:    { bg: "rgba(22,163,74,0.12)",   color: "#15803d" },
+  REJECTED:    { bg: "rgba(220,38,38,0.12)",   color: "#dc2626" },
+  DESIGN_SENT: { bg: "rgba(99,102,241,0.12)",  color: "#6366f1" },
+  PUBLISHED:   { bg: "rgba(99,102,241,0.18)",  color: "#4338ca" },
+  OPEN:        { bg: "rgba(59,130,246,0.12)",  color: "#2563eb" },
+  IN_PROGRESS: { bg: "rgba(202,138,4,0.12)",   color: "#b45309" },
+  COMPLETED:   { bg: "rgba(22,163,74,0.12)",   color: "#15803d" },
 };
 
 const PRODUCT_LABELS: Record<string, string> = {
@@ -29,9 +29,39 @@ const BOOKS = [1, 2, 3, 4] as const;
 const CURRENT_YEAR = new Date().getFullYear();
 const YEARS = [CURRENT_YEAR - 1, CURRENT_YEAR, CURRENT_YEAR + 1];
 
+function Badge({ status }: { status: string }) {
+  const s = STATUS_BADGE[status] ?? { bg: "rgba(156,163,175,0.15)", color: "#6b7280" };
+  return (
+    <span style={{
+      fontSize: 10.5, fontWeight: 600, padding: "2px 8px", borderRadius: 99,
+      background: s.bg, color: s.color, whiteSpace: "nowrap",
+    }}>
+      {status.replace(/_/g, " ")}
+    </span>
+  );
+}
+
+function timeAgo(d: string) {
+  const diff = Date.now() - new Date(d).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
+}
+
+function dueDateStyle(dueDate: string | null): React.CSSProperties {
+  if (!dueDate) return { color: "var(--text-muted)" };
+  const days = (new Date(dueDate).getTime() - Date.now()) / 86400000;
+  if (days < 0) return { color: "#dc2626", fontWeight: 600 };
+  if (days < 3) return { color: "#d97706", fontWeight: 600 };
+  return { color: "var(--text-muted)" };
+}
+
 function formatDate(d: string | null) {
-  if (!d) return "—";
-  return new Date(d).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+  if (!d) return null;
+  return new Date(d).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
 }
 
 const BLANK_FORM = {
@@ -39,6 +69,111 @@ const BLANK_FORM = {
   classFrom: "1", classTo: "5", assignedToId: "", dueDate: "",
   bookNumber: "", year: String(CURRENT_YEAR),
 };
+
+// ─── Topic Card ───────────────────────────────────────────────────────────────
+function TopicCard({
+  topic, onClick, showAssignee = false,
+}: {
+  topic: any; onClick?: () => void; showAssignee?: boolean;
+}) {
+  // Use primary document; fall back to most-recent document from one-to-many relation
+  const doc = topic.document ?? topic.documents?.[0] ?? null;
+  const dueStyle = dueDateStyle(topic.dueDate);
+  const days = topic.dueDate ? (new Date(topic.dueDate).getTime() - Date.now()) / 86400000 : null;
+
+  return (
+    <div
+      onClick={onClick}
+      style={{
+        background: "var(--surface)",
+        border: "1px solid var(--border)",
+        borderRadius: "var(--radius-xl, 14px)",
+        padding: "16px 18px",
+        cursor: onClick ? "pointer" : "default",
+        transition: "box-shadow 0.15s, border-color 0.15s",
+        display: "flex",
+        flexDirection: "column",
+        gap: 10,
+      }}
+      onMouseEnter={(e) => { if (onClick) (e.currentTarget as HTMLDivElement).style.boxShadow = "0 4px 16px rgba(0,0,0,0.1)"; }}
+      onMouseLeave={(e) => { if (onClick) (e.currentTarget as HTMLDivElement).style.boxShadow = "none"; }}
+    >
+      {/* Top row: badges */}
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+        <span style={{
+          fontSize: 10.5, fontWeight: 700, padding: "2px 8px", borderRadius: 99,
+          background: "rgba(99,102,241,0.1)", color: "#6366f1",
+        }}>
+          {PRODUCT_LABELS[topic.productType] ?? topic.productType}
+        </span>
+        <span style={{
+          fontSize: 10.5, padding: "2px 8px", borderRadius: 99,
+          background: "rgba(156,163,175,0.12)", color: "var(--text-muted)",
+        }}>
+          Class {topic.classFrom}–{topic.classTo}
+        </span>
+        {topic.bookNumber && (
+          <span style={{
+            fontSize: 10.5, fontWeight: 600, padding: "2px 8px", borderRadius: 99,
+            background: "rgba(99,102,241,0.08)", color: "#818cf8",
+          }}>
+            Book {topic.bookNumber}
+          </span>
+        )}
+        <div style={{ flex: 1 }} />
+        <Badge status={topic.status} />
+      </div>
+
+      {/* Title */}
+      <div>
+        <div style={{ fontSize: 14, fontWeight: 600, lineHeight: 1.4, marginBottom: 2 }}>{topic.title}</div>
+        {topic.description && (
+          <div style={{ fontSize: 12, color: "var(--text-muted)", lineHeight: 1.4 }}>{topic.description}</div>
+        )}
+      </div>
+
+      {/* Doc status row */}
+      {doc && (
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <Badge status={doc.status} />
+          {doc.wordCount > 0 && (
+            <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{doc.wordCount.toLocaleString()} words</span>
+          )}
+          <span style={{ fontSize: 11, color: "var(--text-muted)" }}>saved {timeAgo(doc.updatedAt)}</span>
+        </div>
+      )}
+
+      {/* Rejection comment */}
+      {doc?.status === "REJECTED" && doc.adminComment && (
+        <div style={{
+          fontSize: 12, color: "#dc2626", background: "rgba(220,38,38,0.05)",
+          border: "1px solid rgba(220,38,38,0.15)", borderRadius: 6, padding: "6px 10px",
+        }}>
+          <strong>Feedback:</strong> {doc.adminComment}
+        </div>
+      )}
+
+      {/* Footer */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 2 }}>
+        <div style={{ display: "flex", gap: 12, fontSize: 11 }}>
+          {topic.dueDate && (
+            <span style={dueStyle}>
+              {days !== null && days < 0 ? "Overdue" : "Due"} {formatDate(topic.dueDate)}
+            </span>
+          )}
+          {showAssignee && topic.assignedTo && (
+            <span style={{ color: "var(--text-muted)" }}>{topic.assignedTo.name}</span>
+          )}
+        </div>
+        {onClick && (
+          <span style={{ fontSize: 12, color: "#6366f1", fontWeight: 500 }}>
+            {doc ? "Open Editor →" : "No doc yet"}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
 
 // ─── Admin view ───────────────────────────────────────────────────────────────
 function AdminTopicsPage() {
@@ -52,11 +187,13 @@ function AdminTopicsPage() {
   const [filterBook,   setFilterBook]   = useState<string>("ALL");
   const [filterYear,   setFilterYear]   = useState<string>(String(CURRENT_YEAR));
   const [filterStatus, setFilterStatus] = useState("ALL");
+  const [showForm,     setShowForm]     = useState(false);
+  const router = useRouter();
 
   const fetchTopics = () =>
-    fetch("/api/content/topics", { credentials: "include" })
+    fetch("/api/content/topics?limit=200", { credentials: "include" })
       .then((r) => r.json())
-      .then((d) => setTopics(Array.isArray(d) ? d : []));
+      .then((d) => setTopics(Array.isArray(d) ? d : (d?.topics ?? [])));
 
   useEffect(() => {
     Promise.all([
@@ -90,6 +227,7 @@ function AdminTopicsPage() {
       setMsg({ text: editId ? "Topic updated." : "Topic created and assigned.", ok: true });
       setForm({ ...BLANK_FORM });
       setEditId(null);
+      setShowForm(false);
       await fetchTopics();
     } catch (err: any) {
       setMsg({ text: err.message, ok: false });
@@ -112,12 +250,12 @@ function AdminTopicsPage() {
       year:         t.year      != null ? String(t.year)       : String(CURRENT_YEAR),
     });
     setMsg({ text: "", ok: false });
+    setShowForm(true);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const cancelEdit = () => { setEditId(null); setForm({ ...BLANK_FORM }); setMsg({ text: "", ok: false }); };
+  const cancelEdit = () => { setEditId(null); setForm({ ...BLANK_FORM }); setMsg({ text: "", ok: false }); setShowForm(false); };
 
-  // Filter
   const filtered = topics.filter((t) => {
     if (filterYear !== "ALL" && String(t.year ?? CURRENT_YEAR) !== filterYear) return false;
     if (filterBook !== "ALL") {
@@ -128,119 +266,111 @@ function AdminTopicsPage() {
     return true;
   });
 
-  // Group by book for display
-  const grouped = BOOKS.reduce((acc, b) => {
-    acc[b] = filtered.filter((t) => t.bookNumber === b);
-    return acc;
-  }, {} as Record<number, any[]>);
-  const unassigned = filtered.filter((t) => !t.bookNumber);
-
-  // Available years in topics
   const topicYears = [...new Set(topics.map((t) => t.year ?? CURRENT_YEAR))].sort();
 
-  if (loading) return <p style={{ color: "var(--text-muted)" }}>Loading...</p>;
+  if (loading) return <div style={{ color: "var(--text-muted)", padding: "40px 0", textAlign: "center" }}>Loading...</div>;
 
   return (
     <>
-      <div className="page-header">
-        <h1>Content Topics</h1>
-        <p>Organise content by Book (published 4× per year) and assign to team members.</p>
+      <div className="page-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+        <div>
+          <h1>Content Topics</h1>
+          <p>Organise content by Book and assign to team members.</p>
+        </div>
+        <button className="btn btn-primary" onClick={() => { setShowForm(!showForm); setEditId(null); setForm({ ...BLANK_FORM }); }}>
+          {showForm ? "Cancel" : "+ New Topic"}
+        </button>
       </div>
 
       {/* Create / Edit form */}
-      <div className="card" style={{ marginBottom: 24 }}>
-        <h2 style={{ marginBottom: 16 }}>{editId ? "Edit Topic" : "Create & Assign Topic"}</h2>
-
-        {msg.text && (
-          <div className={`alert ${msg.ok ? "alert-success" : "alert-error"}`} style={{ marginBottom: 14 }}>
-            {msg.text}
-          </div>
-        )}
-
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          <div style={{ gridColumn: "1 / -1" }}>
-            <label className="form-label">Title *</label>
-            <input className="input" value={form.title}
-              onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-              placeholder="e.g. Chapter 5 – Solar System (Class 5 Plains)" />
-          </div>
-
-          <div style={{ gridColumn: "1 / -1" }}>
-            <label className="form-label">Description <span style={{ color: "var(--text-muted)" }}>(optional)</span></label>
-            <textarea className="input" rows={2} value={form.description}
-              onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-              placeholder="Brief notes for the assignee…" />
-          </div>
-
-          <div>
-            <label className="form-label">Product Type *</label>
-            <select className="input" value={form.productType}
-              onChange={(e) => setForm((f) => ({ ...f, productType: e.target.value }))}>
-              {PRODUCT_TYPES.map(([val, label]) => (
-                <option key={val} value={val}>{label}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="form-label">Assign To *</label>
-            <select className="input" value={form.assignedToId}
-              onChange={(e) => setForm((f) => ({ ...f, assignedToId: e.target.value }))}>
-              <option value="">Select team member…</option>
-              {users.map((u: any) => (
-                <option key={u.id} value={u.id}>{u.name}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Book + Year */}
-          <div>
-            <label className="form-label">Book Number <span style={{ color: "var(--text-muted)" }}>(paperback only)</span></label>
-            <select className="input" value={form.bookNumber}
-              onChange={(e) => setForm((f) => ({ ...f, bookNumber: e.target.value }))}>
-              <option value="">— Not assigned —</option>
-              {BOOKS.map((b) => <option key={b} value={String(b)}>Book {b}</option>)}
-            </select>
-          </div>
-
-          <div>
-            <label className="form-label">Year *</label>
-            <select className="input" value={form.year}
-              onChange={(e) => setForm((f) => ({ ...f, year: e.target.value }))}>
-              {YEARS.map((y) => <option key={y} value={String(y)}>{y}</option>)}
-            </select>
-          </div>
-
-          <div>
-            <label className="form-label">Class Range *</label>
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <input className="input" type="number" min={1} max={12} value={form.classFrom}
-                onChange={(e) => setForm((f) => ({ ...f, classFrom: e.target.value }))}
-                placeholder="From" style={{ width: 80 }} />
-              <span style={{ color: "var(--text-muted)" }}>to</span>
-              <input className="input" type="number" min={1} max={12} value={form.classTo}
-                onChange={(e) => setForm((f) => ({ ...f, classTo: e.target.value }))}
-                placeholder="To" style={{ width: 80 }} />
+      {showForm && (
+        <div className="card" style={{ marginBottom: 24 }}>
+          <h2 style={{ marginBottom: 16 }}>{editId ? "Edit Topic" : "Create & Assign Topic"}</h2>
+          {msg.text && (
+            <div className={`alert ${msg.ok ? "alert-success" : "alert-error"}`} style={{ marginBottom: 14 }}>
+              {msg.text}
+            </div>
+          )}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div style={{ gridColumn: "1 / -1" }}>
+              <label className="form-label">Title *</label>
+              <input className="input" value={form.title}
+                onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+                placeholder="e.g. Chapter 5 – Solar System (Class 5 Plains)" />
+            </div>
+            <div style={{ gridColumn: "1 / -1" }}>
+              <label className="form-label">Description <span style={{ color: "var(--text-muted)" }}>(optional)</span></label>
+              <textarea className="input" rows={2} value={form.description}
+                onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+                placeholder="Brief notes for the assignee…" />
+            </div>
+            <div>
+              <label className="form-label">Product Type *</label>
+              <select className="input" value={form.productType}
+                onChange={(e) => setForm((f) => ({ ...f, productType: e.target.value }))}>
+                {PRODUCT_TYPES.map(([val, label]) => (
+                  <option key={val} value={val}>{label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="form-label">Assign To *</label>
+              <select className="input" value={form.assignedToId}
+                onChange={(e) => setForm((f) => ({ ...f, assignedToId: e.target.value }))}>
+                <option value="">Select team member…</option>
+                {users.map((u: any) => (
+                  <option key={u.id} value={u.id}>{u.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="form-label">Book Number <span style={{ color: "var(--text-muted)" }}>(paperback only)</span></label>
+              <select className="input" value={form.bookNumber}
+                onChange={(e) => setForm((f) => ({ ...f, bookNumber: e.target.value }))}>
+                <option value="">— Not assigned —</option>
+                {BOOKS.map((b) => <option key={b} value={String(b)}>Book {b}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="form-label">Year *</label>
+              <select className="input" value={form.year}
+                onChange={(e) => setForm((f) => ({ ...f, year: e.target.value }))}>
+                {YEARS.map((y) => <option key={y} value={String(y)}>{y}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="form-label">Class Range *</label>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <input className="input" type="number" min={1} max={12} value={form.classFrom}
+                  onChange={(e) => setForm((f) => ({ ...f, classFrom: e.target.value }))}
+                  placeholder="From" style={{ width: 80 }} />
+                <span style={{ color: "var(--text-muted)" }}>to</span>
+                <input className="input" type="number" min={1} max={12} value={form.classTo}
+                  onChange={(e) => setForm((f) => ({ ...f, classTo: e.target.value }))}
+                  placeholder="To" style={{ width: 80 }} />
+              </div>
+            </div>
+            <div>
+              <label className="form-label">Due Date <span style={{ color: "var(--text-muted)" }}>(optional)</span></label>
+              <input className="input" type="date" value={form.dueDate}
+                onChange={(e) => setForm((f) => ({ ...f, dueDate: e.target.value }))} />
             </div>
           </div>
-
-          <div>
-            <label className="form-label">Due Date <span style={{ color: "var(--text-muted)" }}>(optional)</span></label>
-            <input className="input" type="date" value={form.dueDate}
-              onChange={(e) => setForm((f) => ({ ...f, dueDate: e.target.value }))} />
+          <div style={{ marginTop: 16, display: "flex", gap: 8 }}>
+            <button className="btn btn-primary" onClick={submit} disabled={submitting}>
+              {submitting ? (editId ? "Saving…" : "Creating…") : (editId ? "Save Changes" : "Create & Assign")}
+            </button>
+            <button className="btn" onClick={cancelEdit}>Cancel</button>
           </div>
         </div>
+      )}
 
-        <div style={{ marginTop: 16, display: "flex", gap: 8 }}>
-          <button className="btn btn-primary" onClick={submit} disabled={submitting}>
-            {submitting ? (editId ? "Saving…" : "Creating…") : (editId ? "Save Changes" : "Create & Assign")}
-          </button>
-          {editId && <button className="btn" onClick={cancelEdit}>Cancel</button>}
-        </div>
-      </div>
+      {!showForm && msg.text && (
+        <div className={`alert ${msg.ok ? "alert-success" : "alert-error"}`} style={{ marginBottom: 16 }}>{msg.text}</div>
+      )}
 
       {/* Filters */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
+      <div style={{ display: "flex", gap: 6, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
         <span style={{ fontSize: 12, color: "var(--text-muted)" }}>Year:</span>
         {["ALL", ...topicYears.map(String)].map((y) => (
           <button key={y} className="btn" style={{ fontSize: 12, background: filterYear === y ? "var(--accent)" : undefined, color: filterYear === y ? "#fff" : undefined }}
@@ -251,7 +381,7 @@ function AdminTopicsPage() {
         {["ALL", "1", "2", "3", "4", "NONE"].map((b) => (
           <button key={b} className="btn" style={{ fontSize: 12, background: filterBook === b ? "var(--accent)" : undefined, color: filterBook === b ? "#fff" : undefined }}
             onClick={() => setFilterBook(b)}>
-            {b === "ALL" ? "All Books" : b === "NONE" ? "Unassigned" : `Book ${b}`}
+            {b === "ALL" ? "All" : b === "NONE" ? "Unassigned" : `Book ${b}`}
           </button>
         ))}
         <span style={{ width: 1, height: 20, background: "var(--border)", margin: "0 4px" }} />
@@ -261,124 +391,55 @@ function AdminTopicsPage() {
             {s === "ALL" ? "All Status" : s.replace("_", " ")}
           </button>
         ))}
+        <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--text-muted)" }}>{filtered.length} topic{filtered.length !== 1 ? "s" : ""}</span>
       </div>
 
-      {/* Grouped book view */}
+      {/* Card grid */}
       {filtered.length === 0 ? (
-        <div className="card" style={{ textAlign: "center", padding: 40, color: "var(--text-muted)" }}>No topics match the selected filters.</div>
+        <div className="card" style={{ textAlign: "center", padding: 40, color: "var(--text-muted)" }}>
+          No topics match the selected filters.
+        </div>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-          {BOOKS.map((b) => grouped[b]?.length ? (
-            <BookSection key={b} title={`Book ${b}`} topics={grouped[b]} onEdit={startEdit} accent="#6366f1" />
-          ) : null)}
-          {unassigned.length > 0 && (
-            <BookSection title="No Book Assigned" topics={unassigned} onEdit={startEdit} accent="#9ca3af" />
-          )}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 16 }}>
+          {filtered.map((t) => {
+            const primaryDocId = t.documentId ?? t.documents?.[0]?.id ?? null;
+            return (
+            <div key={t.id} style={{ position: "relative" }}>
+              <TopicCard
+                topic={t}
+                showAssignee={true}
+                onClick={primaryDocId ? () => router.push(`/content/workspace/${primaryDocId}`) : undefined}
+              />
+              <button
+                className="btn"
+                style={{ position: "absolute", top: 12, right: 12, fontSize: 11, padding: "3px 8px", zIndex: 2 }}
+                onClick={(e) => { e.stopPropagation(); startEdit(t); }}
+              >
+                Edit
+              </button>
+            </div>
+            );
+          })}
         </div>
       )}
     </>
   );
 }
 
-function BookSection({ title, topics, onEdit, accent }: {
-  title: string; topics: any[]; onEdit: (t: any) => void; accent: string;
-}) {
-  return (
-    <div>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-        <div style={{ width: 4, height: 20, background: accent, borderRadius: 2 }} />
-        <h2 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>{title}</h2>
-        <span style={{ fontSize: 12, color: "var(--text-muted)" }}>{topics.length} topic{topics.length !== 1 ? "s" : ""}</span>
-      </div>
-      <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>Title</th>
-              <th>Product</th>
-              <th>Class</th>
-              <th>Assigned To</th>
-              <th>Due</th>
-              <th>Status</th>
-              <th>Docs</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {topics.map((t) => (
-              <tr key={t.id}>
-                <td style={{ fontWeight: 500, maxWidth: 240 }}>
-                  <div>{t.title}</div>
-                  {t.description && (
-                    <div style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 2 }}>{t.description}</div>
-                  )}
-                </td>
-                <td>
-                  <span className="badge badge-blue" style={{ fontSize: 11 }}>
-                    {PRODUCT_LABELS[t.productType] ?? t.productType}
-                  </span>
-                </td>
-                <td style={{ color: "var(--text-muted)", fontSize: 13 }}>{t.classFrom}–{t.classTo}</td>
-                <td style={{ fontSize: 13 }}>{t.assignedTo?.name ?? "—"}</td>
-                <td style={{ color: "var(--text-muted)", fontSize: 12.5 }}>{formatDate(t.dueDate)}</td>
-                <td><span className={`badge ${STATUS_BADGE[t.status] ?? "badge-gray"}`}>{t.status}</span></td>
-                <td style={{ color: "var(--text-muted)", fontSize: 13 }}>{t._count?.documents ?? 0}</td>
-                <td>
-                  <button className="btn" style={{ fontSize: 12 }} onClick={() => onEdit(t)}>Edit</button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
 // ─── Content team view ────────────────────────────────────────────────────────
 function ContentTeamTopicsPage() {
-  const [topics,         setTopics]        = useState<any[]>([]);
-  const [docs,           setDocs]          = useState<any[]>([]);
-  const [selectedTopic,  setSelected]      = useState<any>(null);
-  const [loading,        setLoading]       = useState(true);
-  const [showNewDoc,     setShowNewDoc]    = useState(false);
-  const [newDocTitle,    setNewDocTitle]   = useState("");
-  const [creating,       setCreating]      = useState(false);
-  const [error,          setError]         = useState("");
-  const [filterBook,     setFilterBook]    = useState<string>("ALL");
+  const [topics,   setTopics]   = useState<any[]>([]);
+  const [loading,  setLoading]  = useState(true);
+  const [filterBook, setFilterBook] = useState<string>("ALL");
+  const router = useRouter();
 
   useEffect(() => {
-    fetch("/api/content/topics", { credentials: "include" })
+    fetch("/api/content/topics?limit=200", { credentials: "include" })
       .then((r) => r.json())
-      .then((t) => setTopics(Array.isArray(t) ? t : []))
+      .then((t) => setTopics(Array.isArray(t) ? t : (t?.topics ?? [])))
       .finally(() => setLoading(false));
   }, []);
 
-  function selectTopic(topic: any) {
-    setSelected(topic);
-    setShowNewDoc(false);
-    setDocs([]);
-    fetch(`/api/content/documents?topicId=${topic.id}`, { credentials: "include" })
-      .then((r) => r.json())
-      .then((d) => setDocs(Array.isArray(d) ? d : []));
-  }
-
-  async function createDoc() {
-    if (!newDocTitle.trim() || !selectedTopic) return;
-    setCreating(true); setError("");
-    try {
-      const res = await fetch("/api/content/documents", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ topicId: selectedTopic.id, title: newDocTitle }),
-      });
-      const data = await res.json();
-      if (!res.ok) { setError(data.error ?? "Failed to create"); return; }
-      window.location.href = `/content/documents/${data.id}`;
-    } finally { setCreating(false); }
-  }
-
-  // Group topics by book number
   const grouped = BOOKS.reduce((acc, b) => {
     acc[b] = topics.filter((t) => t.bookNumber === b);
     return acc;
@@ -389,16 +450,16 @@ function ContentTeamTopicsPage() {
     : filterBook === "NONE" ? unassigned
     : topics.filter((t) => String(t.bookNumber) === filterBook);
 
-  if (loading) return <p style={{ color: "var(--text-muted)" }}>Loading...</p>;
+  if (loading) return <div style={{ color: "var(--text-muted)", padding: "40px 0", textAlign: "center" }}>Loading...</div>;
 
   return (
     <>
       <div className="page-header">
         <h1>My Topics</h1>
-        <p>Select a topic to view and create documents.</p>
+        <p>Click a topic to open the editor.</p>
       </div>
 
-      {/* Book summary cards */}
+      {/* Book summary filter */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10, marginBottom: 20 }}>
         {BOOKS.map((b) => (
           <div key={b} className="card" style={{
@@ -406,8 +467,8 @@ function ContentTeamTopicsPage() {
             border: filterBook === String(b) ? "2px solid var(--accent)" : "1px solid var(--border)",
             transition: "border 0.15s",
           }} onClick={() => setFilterBook(filterBook === String(b) ? "ALL" : String(b))}>
-            <div style={{ fontSize: 16, fontWeight: 700, color: "var(--accent)" }}>Book {b}</div>
-            <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: "var(--accent)" }}>Book {b}</div>
+            <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
               {grouped[b]?.length ?? 0} topic{grouped[b]?.length !== 1 ? "s" : ""}
             </div>
           </div>
@@ -416,118 +477,35 @@ function ContentTeamTopicsPage() {
           padding: "10px 14px", cursor: "pointer", textAlign: "center",
           border: filterBook === "ALL" ? "2px solid var(--accent)" : "1px solid var(--border)",
         }} onClick={() => setFilterBook("ALL")}>
-          <div style={{ fontSize: 16, fontWeight: 700 }}>All</div>
-          <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>{topics.length} topics</div>
+          <div style={{ fontSize: 15, fontWeight: 700 }}>All</div>
+          <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>{topics.length} topics</div>
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "320px 1fr", gap: 20 }}>
-        {/* Topic list */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {displayTopics.length === 0 ? (
-            <div className="card"><div className="empty-state"><p>No topics for this book yet</p></div></div>
-          ) : (
-            displayTopics.map((t) => (
-              <div key={t.id} onClick={() => selectTopic(t)} className="card"
-                style={{
-                  cursor: "pointer",
-                  border: selectedTopic?.id === t.id ? "2px solid var(--accent)" : "1px solid var(--border)",
-                  padding: "12px 14px", transition: "border 0.15s",
-                }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
-                  <h3 style={{ fontSize: 13, fontWeight: 600, margin: 0, lineHeight: 1.4 }}>{t.title}</h3>
-                  <span className={`badge ${STATUS_BADGE[t.status] ?? "badge-gray"}`} style={{ fontSize: 10, flexShrink: 0, marginLeft: 6 }}>{t.status}</span>
-                </div>
-                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                  {t.bookNumber && (
-                    <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 7px", borderRadius: 99, background: "rgba(99,102,241,0.1)", color: "#6366f1" }}>
-                      Book {t.bookNumber}
-                    </span>
-                  )}
-                  <span className="badge badge-blue" style={{ fontSize: 10 }}>{PRODUCT_LABELS[t.productType] ?? t.productType}</span>
-                  <span className="badge badge-gray" style={{ fontSize: 10 }}>Cls {t.classFrom}–{t.classTo}</span>
-                  <span className="badge badge-gray" style={{ fontSize: 10 }}>{t._count?.documents ?? 0} docs</span>
-                </div>
-                {t.dueDate && (
-                  <p style={{ fontSize: 11, color: "var(--text-muted)", margin: "4px 0 0" }}>
-                    Due: {new Date(t.dueDate).toLocaleDateString("en-IN")}
+      {displayTopics.length === 0 ? (
+        <div className="card" style={{ textAlign: "center", padding: 40, color: "var(--text-muted)" }}>
+          No topics assigned yet.
+        </div>
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 16 }}>
+          {displayTopics.map((t) => {
+            const primaryDocId = t.documentId ?? t.documents?.[0]?.id ?? null;
+            return (
+              <div key={t.id} style={{ position: "relative" }}>
+                <TopicCard
+                  topic={t}
+                  onClick={primaryDocId ? () => router.push(`/content/workspace/${primaryDocId}`) : undefined}
+                />
+                {!primaryDocId && (
+                  <p style={{ position: "absolute", bottom: 14, right: 14, fontSize: 11, color: "#dc2626", margin: 0, zIndex: 2 }}>
+                    Contact admin
                   </p>
                 )}
               </div>
-            ))
-          )}
+            );
+          })}
         </div>
-
-        {/* Document panel */}
-        <div className="card">
-          {!selectedTopic ? (
-            <div className="empty-state"><p>Select a topic to view documents</p></div>
-          ) : (
-            <>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
-                <div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                    {selectedTopic.bookNumber && (
-                      <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 99, background: "rgba(99,102,241,0.1)", color: "#6366f1" }}>
-                        Book {selectedTopic.bookNumber} · {selectedTopic.year ?? CURRENT_YEAR}
-                      </span>
-                    )}
-                    <span className="badge badge-blue" style={{ fontSize: 11 }}>{PRODUCT_LABELS[selectedTopic.productType] ?? selectedTopic.productType}</span>
-                    <span className="badge badge-gray" style={{ fontSize: 11 }}>Class {selectedTopic.classFrom}–{selectedTopic.classTo}</span>
-                  </div>
-                  <h2 style={{ margin: 0, fontSize: 15 }}>{selectedTopic.title}</h2>
-                  {selectedTopic.description && (
-                    <p style={{ fontSize: 13, color: "var(--text-muted)", margin: "4px 0 0" }}>{selectedTopic.description}</p>
-                  )}
-                </div>
-                <button className="btn btn-primary" style={{ fontSize: 13 }} onClick={() => setShowNewDoc(true)}>+ New Document</button>
-              </div>
-
-              {showNewDoc && (
-                <div style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: 14, marginBottom: 16 }}>
-                  {error && <p style={{ color: "var(--red)", fontSize: 13, marginBottom: 8 }}>{error}</p>}
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <input className="input" placeholder="Document title..." value={newDocTitle}
-                      onChange={(e) => setNewDocTitle(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && createDoc()} style={{ flex: 1 }} />
-                    <button className="btn btn-primary" onClick={createDoc} disabled={creating}>
-                      {creating ? "Creating..." : "Create"}
-                    </button>
-                    <button className="btn btn-ghost" onClick={() => setShowNewDoc(false)}>Cancel</button>
-                  </div>
-                </div>
-              )}
-
-              {docs.length === 0 ? (
-                <div className="empty-state"><p>No documents for this topic yet</p></div>
-              ) : (
-                <table className="data-table">
-                  <thead>
-                    <tr><th>Title</th><th>Status</th><th>Version</th><th>Last Updated</th><th>Action</th></tr>
-                  </thead>
-                  <tbody>
-                    {docs.map((d) => (
-                      <tr key={d.id}>
-                        <td style={{ fontWeight: 500 }}>{d.title}</td>
-                        <td><span className={`badge ${STATUS_BADGE[d.status] ?? "badge-gray"}`}>{d.status}</span></td>
-                        <td style={{ color: "var(--text-muted)", fontSize: 13 }}>v{d.version}</td>
-                        <td style={{ color: "var(--text-muted)", fontSize: 13 }}>
-                          {new Date(d.updatedAt).toLocaleDateString("en-IN")}
-                        </td>
-                        <td>
-                          <Link href={`/content/documents/${d.id}`} className="btn btn-ghost" style={{ fontSize: 12, padding: "4px 10px" }}>
-                            Open
-                          </Link>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </>
-          )}
-        </div>
-      </div>
+      )}
     </>
   );
 }
@@ -539,9 +517,17 @@ export default function ContentTopicsPage() {
   useEffect(() => {
     fetch("/api/auth/me", { credentials: "include" })
       .then((r) => r.json())
-      .then((d) => setIsAdmin(d?.user?.roles?.includes("ADMIN") ?? false));
+      .then((d) => {
+        const modules: string[] = d?.user?.modules ?? [];
+        const roles: string[]   = d?.user?.roles   ?? [];
+        setIsAdmin(
+          modules.includes("USER_MANAGEMENT") ||
+          modules.includes("CONTENT_ASSIGN")  ||
+          roles.includes("ADMIN")
+        );
+      });
   }, []);
 
-  if (isAdmin === null) return <p style={{ color: "var(--text-muted)" }}>Loading...</p>;
+  if (isAdmin === null) return <div style={{ color: "var(--text-muted)", padding: "40px 0", textAlign: "center" }}>Loading...</div>;
   return isAdmin ? <AdminTopicsPage /> : <ContentTeamTopicsPage />;
 }

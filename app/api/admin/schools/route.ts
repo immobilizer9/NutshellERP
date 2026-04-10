@@ -1,29 +1,30 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyToken, getTokenFromRequest } from "@/lib/auth";
+import { verifyToken, getTokenFromRequest, hasModule } from "@/lib/auth";
 
 export async function GET(req: Request) {
   try {
     const token = getTokenFromRequest(req);
     if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const decoded = verifyToken(token);
-    if (!decoded || !decoded.roles.includes("ADMIN")) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (!decoded || !hasModule(decoded, "SCHOOLS")) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
     const { searchParams } = new URL(req.url);
     const search = searchParams.get("search") ?? "";
     const limit  = parseInt(searchParams.get("limit")  ?? "50");
     const offset = parseInt(searchParams.get("offset") ?? "0");
 
-    const where: any = search
-      ? {
-          OR: [
-            { name:          { contains: search, mode: "insensitive" } },
-            { city:          { contains: search, mode: "insensitive" } },
-            { state:         { contains: search, mode: "insensitive" } },
-            { contactPerson: { contains: search, mode: "insensitive" } },
-          ],
-        }
-      : {};
+    const where: any = {
+      deletedAt: null,
+      ...(search ? {
+        OR: [
+          { name:          { contains: search, mode: "insensitive" } },
+          { city:          { contains: search, mode: "insensitive" } },
+          { state:         { contains: search, mode: "insensitive" } },
+          { contactPerson: { contains: search, mode: "insensitive" } },
+        ],
+      } : {}),
+    };
 
     const [schools, total] = await Promise.all([
       prisma.school.findMany({
@@ -59,7 +60,7 @@ export async function POST(req: Request) {
     const token = getTokenFromRequest(req);
     if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const decoded = verifyToken(token);
-    if (!decoded || !decoded.roles.includes("ADMIN")) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (!decoded || !hasModule(decoded, "SCHOOLS")) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
     const body = await req.json();
     const { name, address, city, state, contactPerson, contactPhone, latitude, longitude, assignedToId } = body;

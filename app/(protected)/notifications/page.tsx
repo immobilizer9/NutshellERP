@@ -118,7 +118,7 @@ export default function NotificationsPage() {
       </div>
 
       {loading ? (
-        <p style={{ color: "var(--text-muted)", fontSize: 13 }}>Loading...</p>
+        <div style={{ color: "var(--text-muted)", padding: "40px 0", textAlign: "center" }}>Loading...</div>
       ) : notifications.length === 0 ? (
         <div className="card" style={{ textAlign: "center", padding: "48px 24px" }}>
           <div style={{ fontSize: 36, marginBottom: 12 }}>✓</div>

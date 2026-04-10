@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import AIChatbot from "@/app/components/AIChatbot";
 import { useEffect, useState } from "react";
 
 const ICONS = {
@@ -40,7 +41,7 @@ const MODULE_NAV: Record<string, { href: string; label: string; section: string;
   USER_MANAGEMENT:   { href: "/admin/users",            label: "Users",             section: "Admin",    icon: ICONS.users      },
   AUDIT_LOG:         { href: "/admin/audit-log",        label: "Audit Log",         section: "Admin",    icon: ICONS.audit      },
   EXPORTS:           { href: "/admin/exports",          label: "Exports",           section: "Admin",    icon: ICONS.exports    },
-  CONTENT_CREATE:    { href: "/content/workspace",      label: "My Content",        section: "Content",  icon: ICONS.content    },
+  CONTENT_CREATE:    { href: "/content/topics",          label: "My Topics",         section: "Content",  icon: ICONS.content    },
   CONTENT_ASSIGN:    { href: "/content/topics",         label: "Content Topics",    section: "Content",  icon: ICONS.content    },
   CONTENT_REVIEW:    { href: "/content/review",         label: "Content Review",    section: "Content",  icon: ICONS.review     },
   QUIZ_SESSIONS:     { href: "/content/quiz-sessions",  label: "Quiz Sessions",     section: "Sessions", icon: ICONS.quiz       },
@@ -109,6 +110,9 @@ function NavIcon({ d }: { d: string }) {
 export default function LayoutClient({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+
+  // Full-page editor — skip the sidebar layout entirely
+  const isFullPageEditor = /^\/content\/workspace\/.+/.test(pathname);
   const [modules, setModules] = useState<string[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [upcomingEvents, setUpcomingEvents] = useState<any[]>([]);
@@ -151,6 +155,10 @@ export default function LayoutClient({ children }: { children: React.ReactNode }
     (href.length > 1 &&
       pathname.startsWith(href) &&
       !(href === "/orders" && pathname === "/orders/new"));
+
+  if (isFullPageEditor) {
+    return <>{children}</>;
+  }
 
   return (
     <div style={{ display: "flex", minHeight: "100vh", background: "var(--bg)", alignItems: "flex-start" }}>
@@ -247,6 +255,7 @@ export default function LayoutClient({ children }: { children: React.ReactNode }
         <div className="page fade-in">{children}</div>
       </main>
 
+      <AIChatbot />
     </div>
   );
 }

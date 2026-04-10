@@ -25,9 +25,9 @@ export default function ApprovalsPage() {
 
   const fetchOrders = async () => {
     setLoading(true);
-    const res  = await fetch("/api/orders/list", { credentials: "include" });
+    const res  = await fetch("/api/orders/list?limit=200", { credentials: "include" });
     const data = await res.json();
-    setOrders(Array.isArray(data) ? data : []);
+    setOrders(Array.isArray(data) ? data : (data?.orders ?? []));
     setLoading(false);
   };
 
@@ -143,7 +143,7 @@ export default function ApprovalsPage() {
 
       {/* ── Order Cards ── */}
       {loading ? (
-        <p style={{ color: "var(--text-muted)", fontSize: 13 }}>Loading...</p>
+        <div style={{ color: "var(--text-muted)", padding: "40px 0", textAlign: "center" }}>Loading...</div>
       ) : displayed.length === 0 ? (
         <div className="empty-state">
           <p>{emptyMessages[filter]}</p>

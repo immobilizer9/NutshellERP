@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyToken, getTokenFromRequest } from "@/lib/auth";
+import { verifyToken, getTokenFromRequest, hasModule } from "@/lib/auth";
 
 const VALID_STAGES = [
   "LEAD", "CONTACTED", "VISITED",
@@ -40,7 +40,7 @@ export async function POST(req: Request) {
     }
 
     // ✅ SALES can only update stages for schools assigned to them
-    if (decoded.roles.includes("SALES")) {
+    if (hasModule(decoded, "PIPELINE") && !hasModule(decoded, "TEAM_MANAGEMENT")) {
       if (school.assignedToId !== decoded.userId) {
         return NextResponse.json(
           { error: "You can only update stages for schools assigned to you" },
@@ -50,7 +50,7 @@ export async function POST(req: Request) {
     }
 
     // ✅ BD_HEAD can only update stages for their team's schools
-    if (decoded.roles.includes("BD_HEAD") && !decoded.roles.includes("ADMIN")) {
+    if (hasModule(decoded, "TEAM_MANAGEMENT") && !hasModule(decoded, "USER_MANAGEMENT")) {
       const team = await prisma.user.findMany({
         where: { managerId: decoded.userId },
         select: { id: true },

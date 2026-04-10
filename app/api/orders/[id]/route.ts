@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyToken, getTokenFromRequest } from "@/lib/auth";
+import { verifyToken, getTokenFromRequest, hasModule } from "@/lib/auth";
 
 export async function GET(
   req: NextRequest,
@@ -31,7 +31,7 @@ export async function GET(
     }
 
     const isAdminOrBD =
-      decoded.roles.includes("ADMIN") || decoded.roles.includes("BD_HEAD");
+      hasModule(decoded, "USER_MANAGEMENT") || hasModule(decoded, "TEAM_MANAGEMENT");
 
     if (!isAdminOrBD && order.createdById !== decoded.userId) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });

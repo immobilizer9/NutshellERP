@@ -261,7 +261,7 @@ function NewPipelineModal({
         style={{ background:"var(--surface)",borderRadius:"var(--radius-xl)",border:"1px solid var(--border)",padding:28,width:"100%",maxWidth:520,boxShadow:"0 24px 48px rgba(0,0,0,0.18)",maxHeight:"90vh",overflowY:"auto" }}
       >
         <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20 }}>
-          <h2 style={{ margin:0 }}>Add to Pipeline</h2>
+          <h2 style={{ margin:0 }}>+ New Pipeline</h2>
           <button className="btn btn-ghost" onClick={onClose} style={{ fontSize:18,padding:"2px 8px",lineHeight:1 }}>×</button>
         </div>
 
@@ -373,7 +373,6 @@ function NewPipelineModal({
             </select>
           </div>
 
-          {/* BD/Admin can assign to a team member */}
           {canAssign && (
             <div>
               <label className="form-label">Assign To</label>
@@ -411,7 +410,7 @@ export default function PipelinePage() {
   const [search, setSearch]           = useState("");
   const [stageFilter, setStageFilter] = useState("ALL");
   const [sortField, setSortField]     = useState("name");
-  const [salesFilter, setSalesFilter] = useState(""); // BD/Admin filter
+  const [salesFilter, setSalesFilter] = useState("");
   const [selected, setSelected]       = useState<string[]>([]);
   const [page, setPage]               = useState(1);
   const [showModal, setShowModal]     = useState(false);
@@ -420,14 +419,12 @@ export default function PipelinePage() {
 
   const isBDorAdmin = me?.roles.includes("BD_HEAD") || me?.roles.includes("ADMIN");
 
-  // Load current user
   useEffect(() => {
     fetch("/api/auth/me", { credentials:"include" })
       .then((r) => r.json())
       .then((d) => { if (d?.user) setMe(d.user); });
   }, []);
 
-  // Load sales team for BD/Admin filter
   useEffect(() => {
     if (!me) return;
     if (me.roles.includes("BD_HEAD")) {
@@ -503,20 +500,21 @@ export default function PipelinePage() {
   }, [schools, search, stageFilter, sortField]);
 
   const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
-  const paginated  = filtered.slice((page-1)*ITEMS_PER_PAGE, page*ITEMS_PER_PAGE);
+  const startIdx   = (page - 1) * ITEMS_PER_PAGE;
+  const paginated  = filtered.slice(startIdx, startIdx + ITEMS_PER_PAGE);
 
   const toggleSelect    = (id:string, checked:boolean) => setSelected((p) => checked ? [...p,id] : p.filter((x) => x!==id));
   const toggleSelectAll = (checked:boolean) => setSelected(checked ? paginated.map((s) => s.id) : []);
 
-  // The team list for the modal assign dropdown
   const teamForModal: { id:string; name:string }[] =
     me?.roles.includes("ADMIN") ? allSalesUsers : salesTeam;
 
   return (
     <>
+      {/* Page header */}
       <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:24 }}>
         <div className="page-header" style={{ marginBottom:0 }}>
-          <h1>Sales Pipeline</h1>
+          <h1>Pipeline</h1>
           <p>
             {me?.roles.includes("SALES")
               ? "Your assigned schools and pipeline stages"
@@ -528,7 +526,7 @@ export default function PipelinePage() {
           <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={2} style={{ width:14,height:14 }}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4"/>
           </svg>
-          New Pipeline
+          + New Pipeline
         </button>
       </div>
 
@@ -548,7 +546,6 @@ export default function PipelinePage() {
           <option value="revenue">Sort: Revenue ↓</option>
         </select>
 
-        {/* ✅ Sales person filter — BD/Admin only */}
         {isBDorAdmin && (
           <select className="input" value={salesFilter} onChange={(e) => handleSalesFilter(e.target.value)}>
             <option value="">All Sales Reps</option>
@@ -576,8 +573,9 @@ export default function PipelinePage() {
       <div className="card">
         <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14 }}>
           <span style={{ fontSize:13,color:"var(--text-muted)" }}>
-            {filtered.length} school{filtered.length!==1?"s":""}
-            {filtered.length>ITEMS_PER_PAGE&&` · page ${page} of ${totalPages}`}
+            {filtered.length > 0
+              ? `Showing ${startIdx + 1}–${Math.min(startIdx + ITEMS_PER_PAGE, filtered.length)} of ${filtered.length}`
+              : `0 schools`}
           </span>
           {salesFilter && (
             <div style={{ fontSize:13,color:"var(--accent)",display:"flex",alignItems:"center",gap:6 }}>
@@ -588,7 +586,7 @@ export default function PipelinePage() {
         </div>
 
         {loading ? (
-          <p style={{ color:"var(--text-muted)",fontSize:13 }}>Loading...</p>
+          <div style={{ color:"var(--text-muted)",padding:"40px 0",textAlign:"center" }}>Loading...</div>
         ) : (
           <>
             <div className="table-wrap">
@@ -606,7 +604,7 @@ export default function PipelinePage() {
                     <th>City</th>
                     <th>Assigned To</th>
                     <th>Last Visit</th>
-                    <th>Revenue</th>
+                    <th style={{ textAlign:"right" }}>Revenue</th>
                     <th>Stage</th>
                     <th></th>
                   </tr>
@@ -620,25 +618,25 @@ export default function PipelinePage() {
                           style={{ accentColor:"var(--accent)" }}
                         />
                       </td>
-                      <td style={{ fontWeight:500 }}>{school.name}</td>
+                      <td style={{ fontWeight:500 }}>
+                        <a href={`/schools/${school.id}`} style={{ color:"inherit",textDecoration:"none" }}
+                          onMouseEnter={(e) => { (e.target as HTMLElement).style.color = "var(--accent)"; }}
+                          onMouseLeave={(e) => { (e.target as HTMLElement).style.color = "inherit"; }}>
+                          {school.name}
+                        </a>
+                      </td>
                       <td style={{ color:"var(--text-secondary)" }}>{school.city}</td>
                       <td style={{ color:"var(--text-secondary)" }}>{school.assignedTo?.name ?? "—"}</td>
                       <td style={{ color:"var(--text-secondary)" }}>{lastVisitDate(school)}</td>
-                      <td style={{ fontWeight:600,fontFamily:"monospace" }}>
-                        {totalRevenue(school)>0?`₹${totalRevenue(school).toLocaleString()}`:"—"}
+                      <td style={{ textAlign:"right",fontWeight:600,fontFamily:"monospace" }}>
+                        {totalRevenue(school) > 0 ? `₹${totalRevenue(school).toLocaleString()}` : "—"}
                       </td>
                       <td>
                         <select
                           value={school.pipelineStage}
                           onChange={(e) => updateStage(school.id, e.target.value)}
-                          className={`badge ${
-                            school.pipelineStage==="CLOSED_WON" ?"badge-green":
-                            school.pipelineStage==="CLOSED_LOST"?"badge-red":
-                            school.pipelineStage==="NEGOTIATION"||school.pipelineStage==="PROPOSAL_SENT"?"badge-yellow":
-                            school.pipelineStage==="VISITED"    ?"badge-indigo":
-                            school.pipelineStage==="CONTACTED"  ?"badge-blue":"badge-gray"
-                          }`}
-                          style={{ border:"none",cursor:"pointer",fontFamily:"inherit",background:"transparent" }}
+                          className="input"
+                          style={{ fontSize:12,padding:"4px 8px",height:"auto" }}
                         >
                           {STAGES.map((s) => <option key={s} value={s}>{s.replaceAll("_"," ")}</option>)}
                         </select>
@@ -657,11 +655,12 @@ export default function PipelinePage() {
                       </td>
                     </tr>
                   ))}
-                  {paginated.length===0&&(
-                    <tr><td colSpan={8} style={{ textAlign:"center",padding:"40px 0",color:"var(--text-muted)" }}>
-                      {me?.roles.includes("SALES")
-                        ? "No schools assigned to you yet. Click \"New Pipeline\" to add one."
-                        : "No schools match your filters."}
+                  {paginated.length === 0 && (
+                    <tr><td colSpan={8}>
+                      <div className="empty-state">
+                        <p>{me?.roles.includes("SALES") ? "No schools assigned to you yet" : "No schools match your filters"}</p>
+                        {me?.roles.includes("SALES") && <p>Click "+ New Pipeline" to add one</p>}
+                      </div>
                     </td></tr>
                   )}
                 </tbody>
@@ -669,26 +668,31 @@ export default function PipelinePage() {
             </div>
 
             {/* Pagination */}
-            {totalPages>1&&(
-              <div style={{ display:"flex",justifyContent:"center",alignItems:"center",gap:6,marginTop:16 }}>
-                <button className="btn btn-secondary" disabled={page===1} onClick={() => setPage(1)} style={{ fontSize:12 }}>«</button>
-                <button className="btn btn-secondary" disabled={page===1} onClick={() => setPage(page-1)} style={{ fontSize:12 }}>‹ Prev</button>
-                {Array.from({length:totalPages},(_,i)=>i+1)
-                  .filter((p)=>p===1||p===totalPages||Math.abs(p-page)<=1)
-                  .reduce((acc:(number|string)[],p,i,arr)=>{
-                    if(i>0&&(p as number)-(arr[i-1] as number)>1)acc.push("...");
-                    acc.push(p);return acc;
-                  },[])
-                  .map((p,i)=>p==="..."?(
-                    <span key={`e${i}`} style={{ padding:"0 4px",color:"var(--text-muted)" }}>…</span>
-                  ):(
-                    <button key={p} onClick={() => setPage(p as number)}
-                      style={{ padding:"5px 11px",borderRadius:"var(--radius)",fontSize:13,fontWeight:500,border:"1px solid var(--border)",cursor:"pointer",fontFamily:"inherit",background:page===p?"var(--accent)":"var(--surface)",color:page===p?"#fff":"var(--text-secondary)" }}>
-                      {p}
-                    </button>
-                  ))}
-                <button className="btn btn-secondary" disabled={page===totalPages} onClick={() => setPage(page+1)} style={{ fontSize:12 }}>Next ›</button>
-                <button className="btn btn-secondary" disabled={page===totalPages} onClick={() => setPage(totalPages)} style={{ fontSize:12 }}>»</button>
+            {totalPages > 1 && (
+              <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:16 }}>
+                <span style={{ fontSize:13,color:"var(--text-muted)" }}>
+                  Showing {startIdx + 1}–{Math.min(startIdx + ITEMS_PER_PAGE, filtered.length)} of {filtered.length}
+                </span>
+                <div style={{ display:"flex",alignItems:"center",gap:6 }}>
+                  <button className="btn btn-secondary" disabled={page===1} onClick={() => setPage(1)} style={{ fontSize:12 }}>«</button>
+                  <button className="btn btn-secondary" disabled={page===1} onClick={() => setPage(page-1)} style={{ fontSize:12 }}>‹ Prev</button>
+                  {Array.from({length:totalPages},(_,i)=>i+1)
+                    .filter((p)=>p===1||p===totalPages||Math.abs(p-page)<=1)
+                    .reduce((acc:(number|string)[],p,i,arr)=>{
+                      if(i>0&&(p as number)-(arr[i-1] as number)>1)acc.push("...");
+                      acc.push(p);return acc;
+                    },[])
+                    .map((p,i)=>p==="..."?(
+                      <span key={`e${i}`} style={{ padding:"0 4px",color:"var(--text-muted)" }}>…</span>
+                    ):(
+                      <button key={p} onClick={() => setPage(p as number)}
+                        style={{ padding:"5px 11px",borderRadius:"var(--radius)",fontSize:13,fontWeight:500,border:"1px solid var(--border)",cursor:"pointer",fontFamily:"inherit",background:page===p?"var(--accent)":"var(--surface)",color:page===p?"#fff":"var(--text-secondary)" }}>
+                        {p}
+                      </button>
+                    ))}
+                  <button className="btn btn-secondary" disabled={page===totalPages} onClick={() => setPage(page+1)} style={{ fontSize:12 }}>Next ›</button>
+                  <button className="btn btn-secondary" disabled={page===totalPages} onClick={() => setPage(totalPages)} style={{ fontSize:12 }}>»</button>
+                </div>
               </div>
             )}
           </>

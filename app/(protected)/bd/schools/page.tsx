@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Badge from "@/app/components/Badge";
 
 const EMPTY_FORM = {
   name: "", address: "", city: "", state: "",
@@ -16,6 +15,7 @@ export default function BDSchoolsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
+  const [stageFilter, setStageFilter] = useState("ALL");
 
   const fetchSchools = async () => {
     setLoading(true);
@@ -55,26 +55,36 @@ export default function BDSchoolsPage() {
     setSubmitting(false);
   };
 
-  const filtered = schools.filter((s) =>
-    s.name.toLowerCase().includes(search.toLowerCase()) ||
-    s.city.toLowerCase().includes(search.toLowerCase())
-  );
+  const stages = Array.from(new Set(schools.map((s) => s.pipelineStage).filter(Boolean)));
+
+  const filtered = schools.filter((s) => {
+    const matchSearch =
+      s.name.toLowerCase().includes(search.toLowerCase()) ||
+      s.city.toLowerCase().includes(search.toLowerCase());
+    const matchStage = stageFilter === "ALL" || s.pipelineStage === stageFilter;
+    return matchSearch && matchStage;
+  });
 
   return (
     <>
       <div className="page-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <div>
           <h1>Schools</h1>
-          <p>Manage your school database</p>
+          <p>Manage school accounts</p>
         </div>
-        <button className="btn btn-primary" onClick={() => setShowForm((v) => !v)}>
-          {showForm ? "Cancel" : "+ Add School"}
-        </button>
+        <div style={{ display: "flex", gap: 8 }}>
+          <a href="/admin/schools/bulk-upload" className="btn btn-secondary" style={{ textDecoration: "none", fontSize: 13 }}>
+            Bulk Upload
+          </a>
+          <button className="btn btn-primary" onClick={() => setShowForm((v) => !v)}>
+            {showForm ? "Cancel" : "+ Add School"}
+          </button>
+        </div>
       </div>
 
       {/* ── Add School Form ── */}
       {showForm && (
-        <div className="card fade-in" style={{ marginBottom: 20 }}>
+        <div className="card" style={{ marginBottom: 20 }}>
           <h2 style={{ marginBottom: 16 }}>Add New School</h2>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             {[
@@ -110,15 +120,26 @@ export default function BDSchoolsPage() {
         </div>
       )}
 
-      {/* ── Search ── */}
-      <div style={{ marginBottom: 16 }}>
+      {/* ── Search & Filter ── */}
+      <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
         <input
           className="input"
           placeholder="Search by name or city..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          style={{ maxWidth: 320 }}
+          style={{ maxWidth: 280 }}
         />
+        <select
+          className="input"
+          value={stageFilter}
+          onChange={(e) => setStageFilter(e.target.value)}
+          style={{ maxWidth: 200 }}
+        >
+          <option value="ALL">All Stages</option>
+          {stages.map((s) => (
+            <option key={s} value={s}>{s}</option>
+          ))}
+        </select>
       </div>
 
       {/* ── Schools Table ── */}
@@ -131,51 +152,60 @@ export default function BDSchoolsPage() {
         </div>
 
         {loading ? (
-          <p style={{ color: "var(--text-muted)", fontSize: 13 }}>Loading...</p>
+          <div style={{ color: "var(--text-muted)", padding: "40px 0", textAlign: "center" }}>Loading...</div>
         ) : filtered.length === 0 ? (
           <div className="empty-state">
-            <p>{search ? "No schools match your search" : "No schools yet"}</p>
-            <p>{!search && "Add your first school using the button above"}</p>
+            <p>{search || stageFilter !== "ALL" ? "No schools match your filters" : "No schools yet"}</p>
+            <p>{!search && stageFilter === "ALL" ? "Add your first school using the button above" : "Try adjusting your search or filter"}</p>
           </div>
         ) : (
           <div className="table-wrap">
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>School</th>
+                  <th>Name</th>
                   <th>City</th>
                   <th>State</th>
-                  <th>Contact</th>
-                  <th>Stage</th>
+                  <th>Contact Person</th>
+                  <th>Phone</th>
+                  <th>Pipeline Stage</th>
                   <th>Assigned To</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.map((school) => (
                   <tr key={school.id}>
-                    <td>
-                      <p style={{ fontWeight: 500, margin: 0 }}>{school.name}</p>
-                      {school.address && (
-                        <p style={{ color: "var(--text-muted)", fontSize: 12, margin: "1px 0 0" }}>
-                          {school.address}
-                        </p>
-                      )}
-                    </td>
+                    <td style={{ fontWeight: 500 }}>{school.name}</td>
                     <td style={{ color: "var(--text-secondary)" }}>{school.city}</td>
                     <td style={{ color: "var(--text-secondary)" }}>{school.state}</td>
+                    <td style={{ fontSize: 13 }}>{school.contactPerson ?? "—"}</td>
+                    <td style={{ color: "var(--text-muted)", fontSize: 13 }}>{school.contactPhone ?? "—"}</td>
                     <td>
-                      {school.contactPerson && (
-                        <p style={{ margin: 0, fontSize: 13 }}>{school.contactPerson}</p>
-                      )}
-                      {school.contactPhone && (
-                        <p style={{ color: "var(--text-muted)", fontSize: 12, margin: "1px 0 0" }}>
-                          {school.contactPhone}
-                        </p>
-                      )}
+                      {school.pipelineStage
+                        ? <span className="badge badge-indigo">{school.pipelineStage}</span>
+                        : <span style={{ color: "var(--text-muted)", fontSize: 12 }}>—</span>}
                     </td>
-                    <td><Badge status={school.pipelineStage} /></td>
                     <td style={{ color: "var(--text-secondary)", fontSize: 13 }}>
                       {school.assignedTo?.name ?? "—"}
+                    </td>
+                    <td>
+                      <div style={{ display: "flex", gap: 6 }}>
+                        <a
+                          href={`/bd/schools/${school.id}`}
+                          className="btn btn-secondary"
+                          style={{ fontSize: 12, padding: "4px 10px", textDecoration: "none" }}
+                        >
+                          View
+                        </a>
+                        <a
+                          href={`/bd/schools/${school.id}/edit`}
+                          className="btn btn-secondary"
+                          style={{ fontSize: 12, padding: "4px 10px", textDecoration: "none" }}
+                        >
+                          Edit
+                        </a>
+                      </div>
                     </td>
                   </tr>
                 ))}

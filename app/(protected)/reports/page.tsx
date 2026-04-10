@@ -101,7 +101,7 @@ export default function ReportsPage() {
         </div>
 
         {loading ? (
-          <p style={{ color: "var(--text-muted)" }}>Loading…</p>
+          <div style={{ color: "var(--text-muted)", padding: "40px 0", textAlign: "center" }}>Loading...</div>
         ) : (
           <>
             {/* Team activity status */}
@@ -120,11 +120,7 @@ export default function ReportsPage() {
                         {user.lastActivity ? `Last active ${formatDate(user.lastActivity)}` : "No activity recorded"}
                       </div>
                     </div>
-                    <span style={{
-                      fontSize: 11, fontWeight: 600, padding: "3px 9px", borderRadius: 99,
-                      background: user.isInactive ? "rgba(220,38,38,0.1)" : "rgba(22,163,74,0.1)",
-                      color: user.isInactive ? "var(--red)" : "var(--green)",
-                    }}>
+                    <span className={`badge ${user.isInactive ? "badge-red" : "badge-green"}`}>
                       {user.isInactive ? "Inactive" : "Active"}
                     </span>
                   </div>
@@ -177,7 +173,7 @@ export default function ReportsPage() {
             <div className="card">
               <h2 style={{ marginBottom: 12 }}>Recent Reports</h2>
               {allReports.length === 0 ? (
-                <div style={{ textAlign: "center", padding: 24, color: "var(--text-muted)" }}>No reports yet</div>
+                <div className="empty-state"><p>No reports yet</p><p>Reports will appear here once submitted</p></div>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                   {allReports.map((r: any) => (
@@ -186,11 +182,9 @@ export default function ReportsPage() {
                         <span style={{ fontWeight: 500 }}>{r.salesUser?.name}</span>
                         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                           {r.location && <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{r.location}</span>}
-                          <span style={{
-                            fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 99,
-                            background: r.status === "APPROVED" ? "rgba(22,163,74,0.1)" : r.status === "REJECTED" ? "rgba(220,38,38,0.1)" : "rgba(202,138,4,0.1)",
-                            color: r.status === "APPROVED" ? "var(--green)" : r.status === "REJECTED" ? "var(--red)" : "var(--yellow)",
-                          }}>{r.status}</span>
+                          <span className={`badge ${r.status === "APPROVED" ? "badge-green" : r.status === "REJECTED" ? "badge-red" : "badge-yellow"}`}>
+                            {r.status.charAt(0) + r.status.slice(1).toLowerCase()}
+                          </span>
                         </div>
                       </div>
                       <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 4 }}>{formatDate(r.createdAt)}</div>
@@ -256,9 +250,9 @@ export default function ReportsPage() {
       <div className="card">
         <h2 style={{ marginBottom: 12 }}>My Reports</h2>
         {loading ? (
-          <p style={{ color: "var(--text-muted)" }}>Loading…</p>
+          <div style={{ color: "var(--text-muted)", padding: "40px 0", textAlign: "center" }}>Loading...</div>
         ) : reports.length === 0 ? (
-          <div style={{ textAlign: "center", padding: 24, color: "var(--text-muted)" }}>No reports yet</div>
+          <div className="empty-state"><p>No reports yet</p><p>Submit your first report using the form above</p></div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {reports.map((r) => (

@@ -36,7 +36,7 @@ export default function TrainerDashboardPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) return <p style={{ color: "var(--text-muted)" }}>Loading...</p>;
+  if (loading) return <div style={{ color: "var(--text-muted)", padding: "40px 0", textAlign: "center" }}>Loading...</div>;
 
   const upcomingTrainings = trainings.filter((s) => s.status === "SCHEDULED").slice(0, 5);
   const upcomingQuizzes   = quizzes.filter((s) => s.status === "SCHEDULED").slice(0, 5);

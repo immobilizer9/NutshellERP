@@ -22,14 +22,14 @@ export default function OrderDetailsPage() {
   const [me, setMe]           = useState<any>(null);
 
   // Returns form state
-  const [returnForm, setReturnForm]           = useState<{ itemId: string; quantity: string; reason: string } | null>(null);
-  const [returnMsg, setReturnMsg]             = useState({ text: "", ok: false });
+  const [returnForm, setReturnForm]             = useState<{ itemId: string; quantity: string; reason: string } | null>(null);
+  const [returnMsg, setReturnMsg]               = useState({ text: "", ok: false });
   const [submittingReturn, setSubmittingReturn] = useState(false);
 
   // Edit order state
-  const [editOpen, setEditOpen]     = useState(false);
-  const [editItems, setEditItems]   = useState<any[]>([]);
-  const [editMsg, setEditMsg]       = useState({ text: "", ok: false });
+  const [editOpen, setEditOpen]         = useState(false);
+  const [editItems, setEditItems]       = useState<any[]>([]);
+  const [editMsg, setEditMsg]           = useState({ text: "", ok: false });
   const [submittingEdit, setSubmittingEdit] = useState(false);
 
   // Payment / delivery state
@@ -105,33 +105,59 @@ export default function OrderDetailsPage() {
     setSubmittingEdit(false);
   };
 
-  if (loading) return <div style={{ color: "var(--text-muted)", padding: "40px 0" }}>Loading...</div>;
-  if (error)   return <div className="alert alert-error">{error}</div>;
+  if (loading) return (
+    <div className="page">
+      <div style={{ color: "var(--text-muted)", padding: "40px 0", textAlign: "center" }}>Loading...</div>
+    </div>
+  );
+  if (error) return (
+    <div className="page">
+      <div className="alert alert-error">{error}</div>
+    </div>
+  );
 
   const totalReturned = order.grossAmount - order.netAmount;
   const discount = order.items?.reduce((s: number, i: any) => s + (i.mrp - i.unitPrice) * i.quantity, 0) ?? 0;
 
   return (
-    <>
-      {/* ── Header ── */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
-        <div>
-          <h1 style={{ margin: 0 }}>{order.school?.name}</h1>
-          <p style={{ color: "var(--text-muted)", fontSize: 12, margin: "4px 0 0", fontFamily: "monospace" }}>{order.id}</p>
+    <div className="page">
+
+      {/* ── Page Header ── */}
+      <div className="page-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <a
+              href="/orders"
+              className="btn btn-secondary"
+              style={{ fontSize: 12, padding: "4px 10px", textDecoration: "none" }}
+            >
+              ← Orders
+            </a>
+            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+              <Badge status={order.type} />
+              <Badge status={order.productType} />
+              <Badge status={order.status} />
+            </div>
+          </div>
+          <div>
+            <h1 style={{ margin: 0 }}>Order #{id.slice(-8).toUpperCase()}</h1>
+            <p style={{ margin: "2px 0 0", color: "var(--text-secondary)" }}>{order.school?.name}</p>
+          </div>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <Badge status={order.type} />
-          <Badge status={order.productType} />
-          <Badge status={order.status} />
           {order.status === "PENDING" && me?.id === order.createdById && (
             <button className="btn btn-secondary" style={{ fontSize: 12 }} onClick={openEdit}>
               Edit Order
             </button>
           )}
           {order.pdfUrl && (
-            <a href={order.pdfUrl} target="_blank" rel="noopener noreferrer"
+            <a
+              href={order.pdfUrl}
+              target="_blank"
+              rel="noopener noreferrer"
               className="btn btn-secondary"
-              style={{ fontSize: 12.5, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6 }}>
+              style={{ fontSize: 12.5, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6 }}
+            >
               <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.6} style={{ width: 14, height: 14 }}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3M3 17V7a2 2 0 012-2h6l2 2h4a2 2 0 012 2v3"/>
               </svg>
@@ -144,7 +170,7 @@ export default function OrderDetailsPage() {
       {/* ── Rejection Reason Banner ── */}
       {order.status === "REJECTED" && order.rejectionReason && (
         <div style={{
-          background: "var(--red-bg, #fff5f5)", border: "1px solid var(--red-border, #fca5a5)",
+          background: "var(--red-bg)", border: "1px solid var(--red-border)",
           borderRadius: "var(--radius-lg)", padding: "12px 16px", marginBottom: 20,
           display: "flex", gap: 10, alignItems: "flex-start",
         }}>
@@ -157,7 +183,7 @@ export default function OrderDetailsPage() {
       )}
 
       {/* ── Two-column layout ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: 16, alignItems: "start" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 20, alignItems: "start" }}>
 
         {/* ── LEFT COLUMN — main content ── */}
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -213,28 +239,43 @@ export default function OrderDetailsPage() {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
               <h2 style={{ margin: 0 }}>Returns</h2>
               {order.status === "APPROVED" && !returnForm && (
-                <button className="btn btn-secondary" style={{ fontSize: 12 }}
-                  onClick={() => { setReturnForm({ itemId: order.items?.[0]?.id ?? "", quantity: "", reason: "" }); setReturnMsg({ text: "", ok: false }); }}>
+                <button
+                  className="btn btn-secondary"
+                  style={{ fontSize: 12 }}
+                  onClick={() => {
+                    setReturnForm({ itemId: order.items?.[0]?.id ?? "", quantity: "", reason: "" });
+                    setReturnMsg({ text: "", ok: false });
+                  }}
+                >
                   + Log Return
                 </button>
               )}
             </div>
 
             {order.returns?.length > 0 ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
-                {order.returns.map((ret: any, i: number) => (
-                  <div key={ret.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 0", borderBottom: i < order.returns.length - 1 ? "1px solid var(--border-soft)" : "none" }}>
-                    <div>
-                      <p style={{ fontWeight: 500, margin: 0 }}>{ret.item?.className}</p>
-                      <p style={{ color: "var(--text-muted)", fontSize: 12, margin: "2px 0 0" }}>
-                        Qty: {ret.quantity}{ret.reason && ` · "${ret.reason}"`}
-                      </p>
-                    </div>
-                    <span style={{ fontFamily: "monospace", fontWeight: 600, color: "var(--red)" }}>
-                      − ₹{ret.amount.toLocaleString()}
-                    </span>
-                  </div>
-                ))}
+              <div className="table-wrap" style={{ marginBottom: returnForm ? 14 : 0 }}>
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Class</th>
+                      <th>Qty</th>
+                      <th>Reason</th>
+                      <th style={{ textAlign: "right" }}>Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {order.returns.map((ret: any) => (
+                      <tr key={ret.id}>
+                        <td style={{ fontWeight: 500 }}>{ret.item?.className}</td>
+                        <td>{ret.quantity}</td>
+                        <td style={{ color: "var(--text-muted)", fontSize: 13 }}>{ret.reason || "—"}</td>
+                        <td style={{ fontFamily: "monospace", fontWeight: 600, color: "var(--red)", textAlign: "right" }}>
+                          −₹{ret.amount.toLocaleString()}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             ) : (
               !returnForm && <p style={{ color: "var(--text-muted)", fontSize: 13, margin: 0 }}>No returns logged.</p>
@@ -242,7 +283,7 @@ export default function OrderDetailsPage() {
 
             {/* Log Return Form */}
             {returnForm && (
-              <div style={{ marginTop: order.returns?.length ? 14 : 0, paddingTop: order.returns?.length ? 14 : 0, borderTop: order.returns?.length ? "1px solid var(--border)" : "none" }}>
+              <div style={{ paddingTop: order.returns?.length ? 14 : 0, borderTop: order.returns?.length ? "1px solid var(--border)" : "none" }}>
                 <p style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 10 }}>New Return</p>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr auto", gap: 8, alignItems: "end" }}>
                   <div>
@@ -311,7 +352,7 @@ export default function OrderDetailsPage() {
         </div>
 
         {/* ── RIGHT COLUMN — sticky info panel ── */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 12, position: "sticky", top: 28 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, position: "sticky", top: 24 }}>
 
           {/* Financial Summary */}
           <div className="card">
@@ -321,7 +362,7 @@ export default function OrderDetailsPage() {
               {/* Net amount hero */}
               <div style={{ background: "var(--accent-soft)", border: "1px solid var(--accent-border)", borderRadius: "var(--radius-lg)", padding: "14px 16px", textAlign: "center" }}>
                 <p style={{ fontSize: 11, fontWeight: 700, color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.05em", margin: "0 0 4px" }}>Net Amount</p>
-                <p style={{ fontSize: "1.8rem", fontWeight: 800, color: "var(--accent)", margin: 0, letterSpacing: "-0.03em" }}>
+                <p style={{ fontSize: "1.8rem", fontWeight: 800, color: "var(--green)", margin: 0, letterSpacing: "-0.03em" }}>
                   ₹{order.netAmount.toLocaleString()}
                 </p>
               </div>
@@ -379,7 +420,7 @@ export default function OrderDetailsPage() {
           </div>
 
           {/* Payment Status */}
-          {me?.roles?.includes("BD_HEAD") || me?.roles?.includes("ADMIN") ? (
+          {me?.modules?.includes("TEAM_MANAGEMENT") || me?.modules?.includes("USER_MANAGEMENT") ? (
             <div className="card">
               <h2 style={{ marginBottom: 12 }}>Payment</h2>
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -427,7 +468,7 @@ export default function OrderDetailsPage() {
           )}
 
           {/* Delivery Status */}
-          {me?.roles?.includes("BD_HEAD") || me?.roles?.includes("ADMIN") ? (
+          {me?.modules?.includes("TEAM_MANAGEMENT") || me?.modules?.includes("USER_MANAGEMENT") ? (
             <div className="card">
               <h2 style={{ marginBottom: 12 }}>Delivery</h2>
               <div>
@@ -494,8 +535,10 @@ export default function OrderDetailsPage() {
 
       {/* ── Edit Order Modal ── */}
       {editOpen && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50, padding: 24 }}
-          onClick={(e) => { if (e.target === e.currentTarget) setEditOpen(false); }}>
+        <div
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50, padding: 24 }}
+          onClick={(e) => { if (e.target === e.currentTarget) setEditOpen(false); }}
+        >
           <div className="fade-in" style={{ background: "var(--surface)", borderRadius: "var(--radius-xl)", border: "1px solid var(--border)", padding: 28, width: "100%", maxWidth: 560, maxHeight: "90vh", overflowY: "auto", boxShadow: "0 24px 48px rgba(0,0,0,0.18)" }}>
             <h2 style={{ marginBottom: 6 }}>Edit Order</h2>
             <p style={{ color: "var(--text-muted)", fontSize: 13, marginBottom: 18 }}>Update quantities or agreed prices before approval.</p>
@@ -556,6 +599,6 @@ export default function OrderDetailsPage() {
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 }

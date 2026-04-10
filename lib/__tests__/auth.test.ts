@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import jwt from "jsonwebtoken";
-import { verifyToken, getTokenFromRequest } from "../auth";
+import { verifyToken, getTokenFromRequest, hasModule } from "../auth";
 
 const SECRET = "test-jwt-secret";
 
@@ -11,13 +11,14 @@ beforeAll(() => {
 describe("verifyToken", () => {
   it("returns payload for a valid token", () => {
     const token = jwt.sign(
-      { userId: "u1", organizationId: "org1", roles: ["ADMIN"] },
+      { userId: "u1", organizationId: "org1", roles: ["ADMIN"], modules: ["USER_MANAGEMENT"] },
       SECRET,
       { expiresIn: "1h" }
     );
     const result = verifyToken(token);
     expect(result?.userId).toBe("u1");
     expect(result?.roles).toContain("ADMIN");
+    expect(result?.modules).toContain("USER_MANAGEMENT");
   });
 
   it("returns null for a tampered token", () => {
@@ -37,6 +38,22 @@ describe("verifyToken", () => {
 
   it("returns null for a garbage string", () => {
     expect(verifyToken("not.a.token")).toBeNull();
+  });
+});
+
+describe("hasModule", () => {
+  it("returns true when the module is present", () => {
+    const payload = { userId: "u1", organizationId: "org1", roles: ["SALES"], modules: ["ORDERS", "PIPELINE"] };
+    expect(hasModule(payload, "ORDERS")).toBe(true);
+  });
+
+  it("returns false when the module is absent", () => {
+    const payload = { userId: "u1", organizationId: "org1", roles: ["SALES"], modules: ["ORDERS"] };
+    expect(hasModule(payload, "USER_MANAGEMENT")).toBe(false);
+  });
+
+  it("returns false for a null payload", () => {
+    expect(hasModule(null, "ORDERS")).toBe(false);
   });
 });
 

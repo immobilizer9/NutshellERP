@@ -102,7 +102,7 @@ export default function BDTargetsPage() {
       )}
 
       {loading ? (
-        <p style={{ color: "var(--text-muted)", fontSize: 13 }}>Loading...</p>
+        <div style={{ color: "var(--text-muted)", padding: "40px 0", textAlign: "center" }}>Loading...</div>
       ) : team.length === 0 ? (
         <div className="empty-state"><p>No team members found</p></div>
       ) : (

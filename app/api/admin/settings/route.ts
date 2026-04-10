@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyToken, getTokenFromRequest } from "@/lib/auth";
+import { verifyToken, getTokenFromRequest, hasModule } from "@/lib/auth";
 import fs from "fs";
 import path from "path";
 
@@ -42,7 +42,7 @@ export async function GET(req: Request) {
     const token = getTokenFromRequest(req);
     if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const decoded = verifyToken(token);
-    if (!decoded || !decoded.roles.includes("ADMIN"))
+    if (!decoded || !hasModule(decoded, "USER_MANAGEMENT"))
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
     const org = await prisma.organization.findUnique({
@@ -62,7 +62,7 @@ export async function PUT(req: Request) {
     const token = getTokenFromRequest(req);
     if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const decoded = verifyToken(token);
-    if (!decoded || !decoded.roles.includes("ADMIN"))
+    if (!decoded || !hasModule(decoded, "USER_MANAGEMENT"))
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
     const body = await req.json();

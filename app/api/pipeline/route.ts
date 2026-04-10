@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyToken, getTokenFromRequest } from "@/lib/auth";
+import { verifyToken, getTokenFromRequest, hasModule } from "@/lib/auth";
 
 export async function GET(req: Request) {
   try {
@@ -16,11 +16,11 @@ export async function GET(req: Request) {
 
     let where: any = {};
 
-    if (decoded.roles.includes("SALES")) {
+    if (hasModule(decoded, "PIPELINE") && !hasModule(decoded, "TEAM_MANAGEMENT")) {
       // ✅ Sales users only see schools assigned to them
       where = { assignedToId: decoded.userId };
 
-    } else if (decoded.roles.includes("BD_HEAD")) {
+    } else if (hasModule(decoded, "TEAM_MANAGEMENT")) {
       // BD sees schools assigned to their team members
       const team = await prisma.user.findMany({
         where: { managerId: decoded.userId },
@@ -36,7 +36,7 @@ export async function GET(req: Request) {
         where = { assignedToId: { in: teamIds } };
       }
 
-    } else if (decoded.roles.includes("ADMIN")) {
+    } else if (hasModule(decoded, "USER_MANAGEMENT")) {
       // Admin sees everything, optionally filtered
       if (salesPersonId) {
         where = { assignedToId: salesPersonId };

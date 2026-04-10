@@ -32,12 +32,12 @@ export default function SalesIncentivesPage() {
     // Fetch current month target + all orders
     const [tRes, oRes] = await Promise.all([
       fetch(`/api/targets?month=${month}&year=${year}`, { credentials: "include" }).then((r) => r.json()),
-      fetch("/api/orders/list", { credentials: "include" }).then((r) => r.json()),
+      fetch("/api/orders/list?limit=200", { credentials: "include" }).then((r) => r.json()),
     ]);
 
     const targetsArr = Array.isArray(tRes) ? tRes : [];
     const currentTarget = targetsArr.length > 0 ? targetsArr[0] : null;
-    const allOrders     = Array.isArray(oRes) ? oRes : [];
+    const allOrders     = Array.isArray(oRes) ? oRes : (oRes?.orders ?? []);
 
     setTarget(currentTarget);
     setOrders(allOrders);
@@ -62,11 +62,11 @@ export default function SalesIncentivesPage() {
     const summaries: MonthSummary[] = periods.map(({ month: m, year: y }, i) => {
       const t = historicalTargets[i];
       const rev = allOrders
-        .filter((o) => {
+        .filter((o: any) => {
           const d = new Date(o.createdAt);
           return o.status === "APPROVED" && d.getMonth() + 1 === m && d.getFullYear() === y;
         })
-        .reduce((sum, o) => sum + (o.netAmount || 0), 0);
+        .reduce((sum: any, o: any) => sum + (o.netAmount || 0), 0);
       const incentive = rev * ((t?.incentivePercent ?? 0) / 100);
       return { month: m, year: y, target: t, achievedRevenue: rev, incentiveEarned: incentive };
     });
@@ -119,7 +119,7 @@ export default function SalesIncentivesPage() {
       </div>
 
       {loading ? (
-        <p style={{ color: "var(--text-muted)", fontSize: 13 }}>Loading...</p>
+        <div style={{ color: "var(--text-muted)", padding: "40px 0", textAlign: "center" }}>Loading...</div>
       ) : !hasIncentive ? (
         /* Info box — no incentive */
         <div style={{

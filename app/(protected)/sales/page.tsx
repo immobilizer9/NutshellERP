@@ -20,9 +20,9 @@ export default function SalesPage() {
       .then((d) => setTasks(Array.isArray(d) ? d : []));
 
   const fetchOrders = () =>
-    fetch("/api/orders/list", { credentials: "include" })
+    fetch("/api/orders/list?limit=200", { credentials: "include" })
       .then((r) => r.json())
-      .then((d) => setOrders(Array.isArray(d) ? d : []));
+      .then((d) => setOrders(Array.isArray(d) ? d : (d?.orders ?? [])));
 
   const fetchTarget = () => {
     const now = new Date();
@@ -116,7 +116,7 @@ export default function SalesPage() {
       </div>
 
       {/* ── Stats ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 14, marginBottom: 24 }}>
+      <div className="stats-grid" style={{ marginBottom: 24 }}>
         {[
           { label: "My Orders",     value: orders.length,        color: "var(--text-primary)" },
           { label: "Pending Tasks", value: pendingTasks.length,  color: "var(--yellow)" },
@@ -333,7 +333,7 @@ export default function SalesPage() {
                     </td>
                     <td><Badge status={order.status} /></td>
                     <td style={{ color: "var(--text-muted)", fontSize: 12.5 }}>
-                      {new Date(order.createdAt).toLocaleDateString()}
+                      {new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
                     </td>
                   </tr>
                 ))}

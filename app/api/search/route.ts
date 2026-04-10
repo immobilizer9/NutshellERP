@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyToken, getTokenFromRequest } from "@/lib/auth";
+import { verifyToken, getTokenFromRequest, hasModule } from "@/lib/auth";
 
 export async function GET(req: Request) {
   try {
@@ -13,8 +13,8 @@ export async function GET(req: Request) {
     const q = searchParams.get("q")?.trim() ?? "";
     if (q.length < 2) return NextResponse.json({ schools: [], orders: [], users: [] });
 
-    const isSales = decoded.roles.includes("SALES");
-    const isBD    = decoded.roles.includes("BD_HEAD");
+    const isSales = hasModule(decoded, "ORDERS") && !hasModule(decoded, "TEAM_MANAGEMENT");
+    const isBD    = hasModule(decoded, "TEAM_MANAGEMENT");
 
     // Team IDs for BD_HEAD
     let teamIds: string[] = [];
@@ -25,6 +25,7 @@ export async function GET(req: Request) {
 
     // Schools
     const schoolWhere: any = {
+      deletedAt: null,
       OR: [
         { name: { contains: q, mode: "insensitive" } },
         { city: { contains: q, mode: "insensitive" } },

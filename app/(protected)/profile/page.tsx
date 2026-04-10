@@ -73,7 +73,7 @@ export default function ProfilePage() {
     setSavingPw(false);
   };
 
-  if (!user) return <p style={{ color: "var(--text-muted)", padding: "40px 0" }}>Loading...</p>;
+  if (!user) return <div style={{ color: "var(--text-muted)", padding: "40px 0", textAlign: "center" }}>Loading...</div>;
 
   return (
     <>

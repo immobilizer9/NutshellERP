@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyToken, getTokenFromRequest } from "@/lib/auth";
+import { verifyToken, getTokenFromRequest, hasModule } from "@/lib/auth";
 
 // Expected CSV columns (header row):
 // schoolName, salesRepEmail, productType, grossAmount, netAmount, orderDate, deliveryDate, status
@@ -30,7 +30,7 @@ export async function POST(req: Request) {
     if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const decoded = verifyToken(token);
-    if (!decoded || !decoded.roles.includes("ADMIN")) {
+    if (!decoded || !hasModule(decoded, "USER_MANAGEMENT")) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyToken, getTokenFromRequest } from "@/lib/auth";
+import { verifyToken, getTokenFromRequest, hasModule } from "@/lib/auth";
 
 // GET /api/targets — list targets
 // BD_HEAD: sees all their team's targets (and their own)
@@ -24,9 +24,9 @@ export async function GET(req: Request) {
     if (monthParam) where.month = parseInt(monthParam);
     if (yearParam)  where.year  = parseInt(yearParam);
 
-    if (decoded.roles.includes("SALES")) {
+    if (hasModule(decoded, "TARGETS") && !hasModule(decoded, "TEAM_MANAGEMENT")) {
       where.userId = decoded.userId;
-    } else if (decoded.roles.includes("BD_HEAD")) {
+    } else if (hasModule(decoded, "TEAM_MANAGEMENT")) {
       const team = await prisma.user.findMany({
         where: { managerId: decoded.userId },
         select: { id: true },
@@ -37,7 +37,7 @@ export async function GET(req: Request) {
       } else {
         where.userId = { in: teamIds };
       }
-    } else if (decoded.roles.includes("ADMIN")) {
+    } else if (hasModule(decoded, "USER_MANAGEMENT")) {
       if (userIdParam) where.userId = userIdParam;
     }
 
@@ -66,8 +66,8 @@ export async function POST(req: Request) {
     const decoded = verifyToken(token);
     if (!decoded) return NextResponse.json({ error: "Invalid token" }, { status: 401 });
 
-    const isBD    = decoded.roles.includes("BD_HEAD");
-    const isAdmin = decoded.roles.includes("ADMIN");
+    const isBD    = hasModule(decoded, "TEAM_MANAGEMENT");
+    const isAdmin = hasModule(decoded, "USER_MANAGEMENT");
     if (!isBD && !isAdmin) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }

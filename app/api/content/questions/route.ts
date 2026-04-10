@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyToken, getTokenFromRequest } from "@/lib/auth";
+import { verifyToken, getTokenFromRequest, hasModule } from "@/lib/auth";
 
 export async function GET(req: Request) {
   try {
@@ -33,8 +33,8 @@ export async function POST(req: Request) {
     const decoded = verifyToken(token);
     if (!decoded) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const isAdmin = decoded.roles.includes("ADMIN");
-    const isContentTeam = decoded.roles.includes("CONTENT_TEAM");
+    const isAdmin = hasModule(decoded, "USER_MANAGEMENT");
+    const isContentTeam = hasModule(decoded, "CONTENT_CREATE");
 
     if (!isAdmin && !isContentTeam) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -76,8 +76,8 @@ export async function DELETE(req: Request) {
     const decoded = verifyToken(token);
     if (!decoded) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const isAdmin = decoded.roles.includes("ADMIN");
-    const isContentTeam = decoded.roles.includes("CONTENT_TEAM");
+    const isAdmin = hasModule(decoded, "USER_MANAGEMENT");
+    const isContentTeam = hasModule(decoded, "CONTENT_CREATE");
 
     if (!isAdmin && !isContentTeam) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });

@@ -32,7 +32,7 @@ export default function BDReportsPage() {
     fetchData();
   };
 
-  if (!data) return <p style={{ color: "var(--text-muted)", padding: "40px 0" }}>Loading...</p>;
+  if (!data) return <div style={{ color: "var(--text-muted)", padding: "40px 0", textAlign: "center" }}>Loading...</div>;
 
   return (
     <>

@@ -55,11 +55,11 @@ export default function ContentWorkspacePage() {
 
   useEffect(() => {
     Promise.all([
-      fetch("/api/content/topics", { credentials: "include" }).then((r) => r.json()),
-      fetch("/api/content/documents", { credentials: "include" }).then((r) => r.json()),
+      fetch("/api/content/topics?limit=200", { credentials: "include" }).then((r) => r.json()),
+      fetch("/api/content/documents?limit=200", { credentials: "include" }).then((r) => r.json()),
     ]).then(([t, d]) => {
-      setTopics(Array.isArray(t) ? t : []);
-      setDocs(Array.isArray(d) ? d : []);
+      setTopics(Array.isArray(t) ? t : (t?.topics ?? []));
+      setDocs(Array.isArray(d) ? d : (d?.docs ?? []));
       setLoading(false);
     });
   }, []);
@@ -75,7 +75,7 @@ export default function ContentWorkspacePage() {
     });
     const data = await res.json();
     if (data.id) {
-      window.location.href = `/content/documents/${data.id}`;
+      window.location.href = `/content/workspace/${data.id}`;
     } else {
       setCreateMsg(data.error || "Failed to create document.");
       setCreating(false);
@@ -154,7 +154,7 @@ export default function ContentWorkspacePage() {
       </div>
 
       {loading ? (
-        <p style={{ color: "var(--text-muted)" }}>Loading…</p>
+        <div style={{ color: "var(--text-muted)", padding: "40px 0", textAlign: "center" }}>Loading...</div>
       ) : activeTab === "topics" ? (
         topics.length === 0 ? (
           <div className="card" style={{ textAlign: "center", padding: 32, color: "var(--text-muted)" }}>
@@ -195,7 +195,7 @@ export default function ContentWorkspacePage() {
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {docs.map((d) => (
-              <Link key={d.id} href={`/content/documents/${d.id}`}
+              <Link key={d.id} href={`/content/workspace/${d.id}`}
                 style={{ textDecoration: "none", color: "inherit" }}>
                 <div className="card" style={{ padding: "12px 16px", cursor: "pointer",
                   transition: "box-shadow 0.15s", display: "flex", justifyContent: "space-between", alignItems: "center" }}>

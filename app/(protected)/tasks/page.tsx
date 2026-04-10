@@ -103,19 +103,20 @@ export default function TasksPage() {
     <>
       <div className="page-header">
         <h1>Tasks</h1>
+        <p>Your assigned tasks and deadlines</p>
       </div>
 
       {/* Stats */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 20 }}>
+      <div className="stats-grid" style={{ marginBottom: 20 }}>
         {[
           { label: "Total", value: counts.total },
           { label: "Pending", value: counts.pending },
           { label: "Completed", value: counts.completed },
           { label: "Overdue", value: counts.overdue, color: counts.overdue > 0 ? "var(--red)" : undefined },
         ].map((s) => (
-          <div key={s.label} className="card" style={{ textAlign: "center", padding: "12px 8px" }}>
-            <div style={{ fontSize: 22, fontWeight: 700, color: s.color }}>{s.value}</div>
-            <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{s.label}</div>
+          <div key={s.label} className="stat-card">
+            <div className="stat-label">{s.label}</div>
+            <div className="stat-value" style={{ color: s.color }}>{s.value}</div>
           </div>
         ))}
       </div>
@@ -178,9 +179,9 @@ export default function TasksPage() {
 
       {/* Tasks list */}
       {loading ? (
-        <p style={{ color: "var(--text-muted)" }}>Loading…</p>
+        <div style={{ color: "var(--text-muted)", padding: "40px 0", textAlign: "center" }}>Loading...</div>
       ) : filtered.length === 0 ? (
-        <div className="card" style={{ textAlign: "center", padding: 32, color: "var(--text-muted)" }}>No tasks found</div>
+        <div className="empty-state"><p>No tasks found</p><p>Tasks assigned to you will appear here</p></div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {filtered.map((task) => {
@@ -194,9 +195,8 @@ export default function TasksPage() {
                       fontWeight: 600, fontSize: 14,
                       textDecoration: task.status === "COMPLETED" ? "line-through" : "none",
                     }}>{task.title}</span>
-                    <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 4,
-                      background: `${PRIORITY_COLOR[task.priority]}22`, color: PRIORITY_COLOR[task.priority] }}>
-                      {task.priority}
+                    <span className={`badge ${task.priority === "HIGH" ? "badge-red" : task.priority === "MEDIUM" ? "badge-yellow" : "badge-gray"}`}>
+                      {task.priority.charAt(0) + task.priority.slice(1).toLowerCase()}
                     </span>
                     {task.status === "COMPLETED" && (
                       <span className="badge badge-green">Done</span>

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyToken, getTokenFromRequest } from "@/lib/auth";
+import { verifyToken, getTokenFromRequest, hasModule } from "@/lib/auth";
 
 export async function POST(req: Request) {
   try {
@@ -12,7 +12,7 @@ export async function POST(req: Request) {
 
     const decoded = verifyToken(token);
 
-    if (!decoded || !decoded.roles.includes("SALES")) {
+    if (!decoded || !hasModule(decoded, "DAILY_REPORTS")) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

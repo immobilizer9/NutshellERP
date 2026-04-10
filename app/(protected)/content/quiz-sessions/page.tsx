@@ -134,7 +134,7 @@ export default function QuizSessionsPage() {
 
   const filteredSessions = statusFilter ? sessions.filter((s) => s.status === statusFilter) : sessions;
 
-  if (loading) return <p style={{ color: "var(--text-muted)" }}>Loading...</p>;
+  if (loading) return <div style={{ color: "var(--text-muted)", padding: "40px 0", textAlign: "center" }}>Loading...</div>;
 
   return (
     <>

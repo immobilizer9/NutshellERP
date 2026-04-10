@@ -1,19 +1,18 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyToken, getTokenFromRequest } from "@/lib/auth";
+import { verifyToken, getTokenFromRequest, hasModule } from "@/lib/auth";
+import { writeAuditLog } from "@/lib/auditLog";
 
 export async function POST(req: Request) {
   try {
     const token = getTokenFromRequest(req);
-
-    if (!token) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const decoded = verifyToken(token);
+    if (!decoded) return NextResponse.json({ error: "Invalid token" }, { status: 401 });
 
-    if (!decoded) {
-      return NextResponse.json({ error: "Invalid token" }, { status: 401 });
+    if (!hasModule(decoded, "ORDERS")) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const { orderId, itemId, quantity, reason } = await req.json();
@@ -32,23 +31,34 @@ export async function POST(req: Request) {
       );
     }
 
-    // ✅ Verify the order exists and belongs to this user (unless ADMIN or BD_HEAD)
+    // Verify order exists
     const order = await prisma.order.findUnique({
       where: { id: orderId },
+      include: {
+        createdBy: { select: { id: true, name: true, organizationId: true } },
+      },
     });
 
     if (!order) {
       return NextResponse.json({ error: "Order not found" }, { status: 404 });
     }
 
-    const isAdminOrBD =
-      decoded.roles.includes("ADMIN") || decoded.roles.includes("BD_HEAD");
-
-    if (!isAdminOrBD && order.createdById !== decoded.userId) {
-      return NextResponse.json({ error: "Not allowed" }, { status: 403 });
+    // ✅ Returns only allowed on APPROVED orders (server-enforced)
+    if (order.status !== "APPROVED") {
+      return NextResponse.json(
+        { error: "Returns can only be filed on approved orders" },
+        { status: 400 }
+      );
     }
 
-    // ✅ Fetch item and its existing returns
+    const isAdminOrBD =
+      hasModule(decoded, "USER_MANAGEMENT") || hasModule(decoded, "TEAM_MANAGEMENT");
+
+    if (!isAdminOrBD && order.createdById !== decoded.userId) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    // Fetch item and its existing returns
     const item = await prisma.orderItem.findUnique({
       where: { id: itemId },
       include: { returns: true },
@@ -65,9 +75,8 @@ export async function POST(req: Request) {
       );
     }
 
-    // ✅ Prevent over-returning
+    // Prevent over-returning
     const alreadyReturned = item.returns.reduce((sum, r) => sum + r.quantity, 0);
-
     if (alreadyReturned + quantity > item.quantity) {
       return NextResponse.json(
         {
@@ -81,16 +90,10 @@ export async function POST(req: Request) {
     const amount = quantity * item.unitPrice;
 
     await prisma.return.create({
-      data: {
-        orderId,
-        itemId,
-        quantity,
-        amount,
-        reason: reason || null,
-      },
+      data: { orderId, itemId, quantity, amount, reason: reason || null },
     });
 
-    // ✅ Recalculate netAmount from all returns on this order
+    // Recalculate netAmount from all returns on this order
     const updatedOrder = await prisma.order.findUnique({
       where: { id: orderId },
       include: { returns: true },
@@ -100,11 +103,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Order not found after return" }, { status: 500 });
     }
 
-    const totalReturnAmount = updatedOrder.returns.reduce(
-      (sum, r) => sum + r.amount,
-      0
-    );
-
+    const totalReturnAmount = updatedOrder.returns.reduce((sum, r) => sum + r.amount, 0);
     const newNetAmount = updatedOrder.grossAmount - totalReturnAmount;
 
     await prisma.order.update({
@@ -112,16 +111,26 @@ export async function POST(req: Request) {
       data: { netAmount: newNetAmount },
     });
 
-    return NextResponse.json({
-      success: true,
-      returnedAmount: amount,
-      newNetAmount,
-    });
+    // ✅ Audit log every return
+    writeAuditLog({
+      action:         "ORDER_RETURN_FILED",
+      entity:         "Order",
+      entityId:       orderId,
+      userId:         decoded.userId,
+      organizationId: order.createdBy.organizationId,
+      metadata: {
+        itemId,
+        className: item.className,
+        quantity,
+        amount,
+        reason: reason || null,
+        newNetAmount,
+      },
+    }).catch(() => {});
+
+    return NextResponse.json({ success: true, returnedAmount: amount, newNetAmount });
   } catch (error) {
     console.error("Return error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

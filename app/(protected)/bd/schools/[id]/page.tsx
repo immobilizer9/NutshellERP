@@ -80,7 +80,7 @@ export default function SchoolDetailPage() {
     fetchCompetitors();
   }, [id]);
 
-  if (loading) return <p style={{ color: "var(--text-muted)", padding: "40px 0" }}>Loading...</p>;
+  if (loading) return <div style={{ color: "var(--text-muted)", padding: "40px 0", textAlign: "center" }}>Loading...</div>;
   if (!school)  return <div className="alert alert-error">School not found.</div>;
 
   const approvedOrders = school.orders.filter((o: any) => o.status === "APPROVED");

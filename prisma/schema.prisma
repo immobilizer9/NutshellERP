@@ -43,6 +43,7 @@ model User {
   competitorNotes   CompetitorNote[]  @relation("CompetitorNoteCreator")
   notifications     Notification[]
 
+  refreshTokens           RefreshToken[]
   contentTopicsAssigned   ContentTopic[]           @relation("TopicAssignee")
   contentTopicsCreated    ContentTopic[]           @relation("TopicCreator")
   contentDocuments        ContentDocument[]        @relation("DocAuthor")
@@ -119,6 +120,10 @@ model School {
   contactPerson String?
   contactPhone  String?
 
+  classes         String?  // e.g. "1-10" or "KG-12"
+  studentStrength Int?     // total enrolled students
+  studentFees     Int?     // annual fee per student in rupees
+
   targetProduct  String?  // ANNUAL | NUTSHELL_PAPERBACKS
   targetServices String?  // QUIZ | TRAINING | CLASSROOM_PROGRAM
 
@@ -127,6 +132,7 @@ model School {
 
   pipelineStage PipelineStage @default(LEAD)
 
+  pocs            SchoolPOC[]
   visits          Visit[]
   orders          Order[]
   events          SchoolEvent[]
@@ -137,7 +143,26 @@ model School {
   trainingSessions      TrainingSession[]
   activities            SchoolActivity[]
 
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
+  deletedAt DateTime?
+}
+
+model SchoolPOC {
+  id          String          @id @default(uuid())
+  schoolId    String
+  school      School          @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  name        String
+  designation String?
+  phones      SchoolPOCPhone[]
+  createdAt   DateTime        @default(now())
+}
+
+model SchoolPOCPhone {
+  id    String    @id @default(uuid())
+  pocId String
+  poc   SchoolPOC @relation(fields: [pocId], references: [id], onDelete: Cascade)
+  phone String
+  order Int       @default(0)
 }
 
 model Order {
@@ -192,8 +217,9 @@ model Order {
   // Rejection reason (set when status → REJECTED)
   rejectionReason String?
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
 
   items   OrderItem[]
   returns Return[]
@@ -403,25 +429,33 @@ model ContentTopic {
   assignedTo   User   @relation("TopicAssignee", fields: [assignedToId], references: [id])
   assignedBy   User   @relation("TopicCreator",  fields: [assignedById],  references: [id])
 
-  documents ContentDocument[]
+  documents  ContentDocument[] @relation("TopicDocuments")
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  // Primary document (auto-created with topic)
+  documentId String?   @unique
+  document   ContentDocument? @relation("TopicPrimaryDoc", fields: [documentId], references: [id])
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
 }
 
 model ContentDocument {
   id      String @id @default(uuid())
   title   String
 
-  topicId  String
-  topic    ContentTopic @relation(fields: [topicId], references: [id])
+  topicId  String?
+  topic    ContentTopic? @relation("TopicDocuments", fields: [topicId], references: [id])
 
   authorId String
   author   User   @relation("DocAuthor", fields: [authorId], references: [id])
 
-  body    String  @default("")
-  status  String  @default("DRAFT")
+  body      String  @default("")
+  status    String  @default("DRAFT")
   // DRAFT | SUBMITTED | APPROVED | REJECTED | DESIGN_SENT | PUBLISHED
+
+  wordCount  Int @default(0)
+  charCount  Int @default(0)
 
   version      Int     @default(1)
   adminComment String?
@@ -436,9 +470,11 @@ model ContentDocument {
   driveFileUrl String?
 
   comments DocumentComment[]
+  primaryForTopic ContentTopic? @relation("TopicPrimaryDoc")
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
 }
 
 model DocumentComment {
@@ -451,6 +487,35 @@ model DocumentComment {
   body       String          // the comment message
   resolved   Boolean         @default(false)
   createdAt  DateTime        @default(now())
+}
+
+/// Immutable snapshot saved on every submit/approve action.
+/// Enables diff viewing and full restore.
+model ContentDocumentVersion {
+  id         String   @id @default(uuid())
+  documentId String
+  version    Int
+  body       String   @default("")
+  title      String
+  status     String   // status at time of snapshot
+  savedById  String   // who triggered this snapshot
+  createdAt  DateTime @default(now())
+
+  @@index([documentId, version])
+}
+
+/// Persistent refresh token — stored in DB, rotated on every use.
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String
+  tokenHash String   @unique  // bcrypt hash of the raw token
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  revokedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model QuestionBank {

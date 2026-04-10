@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyToken, getTokenFromRequest } from "@/lib/auth";
+import { verifyToken, getTokenFromRequest, hasModule } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/auditLog";
 
 const VALID_STAGES = [
@@ -48,11 +48,11 @@ export async function POST(req: Request) {
     // ── Determine assigned user ─────────────────────────────────
     let finalAssignedToId: string;
 
-    if (decoded.roles.includes("SALES")) {
+    if (hasModule(decoded, "PIPELINE") && !hasModule(decoded, "TEAM_MANAGEMENT")) {
       // Sales always assigns to themselves — can't reassign
       finalAssignedToId = decoded.userId;
 
-    } else if (decoded.roles.includes("BD_HEAD")) {
+    } else if (hasModule(decoded, "TEAM_MANAGEMENT")) {
       // BD can assign to themselves or any of their team members
       if (assignedToId && assignedToId !== decoded.userId) {
         // Verify the target is a direct report

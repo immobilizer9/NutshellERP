@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyToken, getTokenFromRequest } from "@/lib/auth";
+import { verifyToken, getTokenFromRequest, hasModule } from "@/lib/auth";
 
 /** GET /api/content/documents/[id]  — fetch single document with comments */
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -24,12 +24,14 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       },
     });
 
-    if (!doc) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    if (!doc || doc.deletedAt) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-    const isAdmin      = decoded.roles.includes("ADMIN");
-    const isBDHead     = decoded.roles.includes("BD_HEAD");
-    const isDesign     = decoded.roles.includes("DESIGN_TEAM");
-    const isContentTeam = decoded.roles.includes("CONTENT_TEAM");
+    console.log("Document body length:", doc?.body?.length ?? "NULL");
+
+    const isAdmin      = hasModule(decoded, "USER_MANAGEMENT");
+    const isBDHead     = hasModule(decoded, "TEAM_MANAGEMENT");
+    const isDesign     = hasModule(decoded, "DESIGN_WORK");
+    const isContentTeam = hasModule(decoded, "CONTENT_CREATE");
 
     if (!isAdmin && !isBDHead && !isDesign && !isContentTeam && doc.authorId !== decoded.userId) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -52,24 +54,22 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
     const { id } = await params;
     const body = await req.json();
-    const { docBody, title } = body;
+    const { docBody, body: rawBody, title } = body;
+    const bodyContent = docBody ?? rawBody;
 
-    const isAdmin = decoded.roles.includes("ADMIN");
+    const isAdmin = hasModule(decoded, "USER_MANAGEMENT");
 
     const doc = await (prisma as any).contentDocument.findUnique({ where: { id } });
     if (!doc) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-    // Authors can edit their own DRAFT/REJECTED docs; admins can edit anything
+    // Authors can edit their own docs at any status; admins can edit anything
     if (!isAdmin && doc.authorId !== decoded.userId) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
-    if (!isAdmin && doc.status !== "DRAFT" && doc.status !== "REJECTED") {
-      return NextResponse.json({ error: "Cannot edit document in current status" }, { status: 400 });
-    }
 
     const update: any = {};
-    if (title    !== undefined) update.title = title;
-    if (docBody  !== undefined) update.body  = docBody;
+    if (title        !== undefined) update.title = title;
+    if (bodyContent  !== undefined) update.body  = bodyContent;
 
     const updated = await (prisma as any).contentDocument.update({ where: { id }, data: update });
     return NextResponse.json(updated);

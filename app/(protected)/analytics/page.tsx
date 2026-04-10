@@ -111,11 +111,13 @@ function calcIncentive(achieved: number, target: number): { pct: number; rate: n
 
 // ── Main ───────────────────────────────────────────────────────────
 export default function AnalyticsPage() {
-  const [data, setData]         = useState<any>(null);
-  const [role, setRole]         = useState<string>("");
-  const [targets, setTargets]   = useState<any[]>([]);
-  const [loading, setLoading]   = useState(true);
-  const [error, setError]       = useState("");
+  const [data, setData]               = useState<any>(null);
+  const [role, setRole]               = useState<string>("");
+  const [targets, setTargets]         = useState<any[]>([]);
+  const [loading, setLoading]         = useState(true);
+  const [error, setError]             = useState("");
+  const [engData, setEngData]         = useState<any>(null);
+  const [compData, setCompData]       = useState<any>(null);
 
   useEffect(() => {
     const now = new Date();
@@ -140,18 +142,22 @@ export default function AnalyticsPage() {
         return Promise.all([
           fetch(endpoint, { credentials: "include" }).then((r) => r.json()),
           fetch(`/api/targets?month=${month}&year=${year}`, { credentials: "include" }).then((r) => r.json()),
+          fetch("/api/analytics/engagement-conversion", { credentials: "include" }).then((r) => r.json()).catch(() => null),
+          fetch("/api/analytics/competitors", { credentials: "include" }).then((r) => r.json()).catch(() => null),
         ]);
       })
-      .then(([d, t]) => {
+      .then(([d, t, eng, comp]) => {
         if (d.error) setError(d.error);
         else setData(d);
         setTargets(Array.isArray(t) ? t : []);
+        if (eng && !eng.error)  setEngData(eng);
+        if (comp && !comp.error) setCompData(comp);
       })
       .catch(() => setError("Failed to load analytics."))
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) return <p style={{ color: "var(--text-muted)" }}>Loading...</p>;
+  if (loading) return <div style={{ color: "var(--text-muted)", padding: "40px 0", textAlign: "center" }}>Loading...</div>;
   if (error)   return <div className="alert alert-error">{error}</div>;
 
   const isSales = role === "SALES";
@@ -519,6 +525,148 @@ export default function AnalyticsPage() {
           <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 6 }}>
             Across {data.totalSchools ?? 0} assigned schools using stage weights: Lead 5% → Contacted 15% → Visited 30% → Proposal 50% → Negotiation 70% → Won 100%
           </p>
+        </div>
+      )}
+
+      {/* ── Engagement → Conversion ── */}
+      {engData && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <h2 style={{ marginBottom: 4 }}>Engagement → Conversion Impact</h2>
+          <p style={{ fontSize: 13, color: "var(--text-muted)", margin: "0 0 18px" }}>
+            Schools that received a quiz or teacher training vs those that didn't
+          </p>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 20 }}>
+            {[
+              { label: "Engaged Schools",     d: engData.engaged,    accent: "var(--green)"  },
+              { label: "Non-Engaged Schools", d: engData.nonEngaged, accent: "var(--text-muted)" },
+            ].map(({ label, d, accent }) => (
+              <div key={label} style={{ background: "var(--bg)", borderRadius: "var(--radius-lg)", border: "1px solid var(--border)", padding: "16px 18px" }}>
+                <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: accent, marginBottom: 12 }}>{label}</div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  {[
+                    { label: "Total",           val: d.total },
+                    { label: "Converted",        val: d.converted },
+                    { label: "Conversion Rate",  val: `${d.conversionRate}%`, color: accent },
+                    { label: "Avg Order Value",  val: d.avgOrderValue > 0 ? `₹${d.avgOrderValue.toLocaleString()}` : "—" },
+                  ].map(({ label: l, val, color }) => (
+                    <div key={l} style={{ background: "var(--surface)", borderRadius: "var(--radius)", padding: "8px 10px", border: "1px solid var(--border)" }}>
+                      <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 3 }}>{l}</div>
+                      <div style={{ fontSize: "1.2rem", fontWeight: 700, color: color ?? "var(--text-primary)" }}>{val}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {engData.conversionLift !== 0 && (
+            <div style={{ background: engData.conversionLift > 0 ? "color-mix(in srgb, var(--green) 10%, transparent)" : "color-mix(in srgb, var(--red) 10%, transparent)", border: `1px solid ${engData.conversionLift > 0 ? "var(--green-border, var(--border))" : "var(--red-border)"}`, borderRadius: "var(--radius-lg)", padding: "12px 16px" }}>
+              <p style={{ margin: 0, fontSize: 13.5, fontWeight: 600 }}>
+                {engData.conversionLift > 0 ? "✓" : "↓"}{" "}
+                Engaged schools convert at <strong>{Math.abs(engData.conversionLift)}% {engData.conversionLift > 0 ? "higher" : "lower"}</strong> rate than non-engaged schools.
+                {engData.conversionLift > 0 && " Quiz and training investment is showing results."}
+              </p>
+            </div>
+          )}
+
+          {/* Monthly comparison bars */}
+          {engData.monthlyComparison?.length > 0 && (
+            <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid var(--border)" }}>
+              <h3 style={{ fontSize: 14, marginBottom: 14 }}>Monthly Revenue — Engaged vs Non-Engaged</h3>
+              <div style={{ display: "flex", alignItems: "flex-end", gap: 4, height: 100 }}>
+                {engData.monthlyComparison.map((m: any, i: number) => {
+                  const maxVal = Math.max(...engData.monthlyComparison.map((x: any) => Math.max(x.engaged, x.nonEngaged)), 1);
+                  return (
+                    <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", gap: 2, alignItems: "center" }}>
+                      <div style={{ width: "100%", display: "flex", gap: 2, alignItems: "flex-end", height: 80 }}>
+                        <div style={{ flex: 1, height: `${Math.max(4, (m.engaged / maxVal) * 80)}px`, background: "var(--green)", borderRadius: "3px 3px 0 0", opacity: 0.85 }} title={`Engaged: ₹${m.engaged.toLocaleString()}`} />
+                        <div style={{ flex: 1, height: `${Math.max(4, (m.nonEngaged / maxVal) * 80)}px`, background: "var(--border)", borderRadius: "3px 3px 0 0" }} title={`Non-Engaged: ₹${m.nonEngaged.toLocaleString()}`} />
+                      </div>
+                      <div style={{ fontSize: 9, color: "var(--text-muted)", textAlign: "center" }}>{m.label}</div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div style={{ display: "flex", gap: 14, marginTop: 8, fontSize: 11, color: "var(--text-muted)" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 5 }}><div style={{ width: 10, height: 10, background: "var(--green)", borderRadius: 2 }} /> Engaged</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 5 }}><div style={{ width: 10, height: 10, background: "var(--border)", borderRadius: 2 }} /> Non-Engaged</div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Competitor Intelligence ── */}
+      {compData && compData.competitors?.length > 0 && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <h2 style={{ marginBottom: 4 }}>Competitor Intelligence</h2>
+          <p style={{ fontSize: 13, color: "var(--text-muted)", margin: "0 0 16px" }}>
+            {compData.schoolsWithCompetitors} schools with competitor data · {compData.competitors.length} unique competitors tracked
+          </p>
+          <div className="table-wrap" style={{ marginBottom: 16 }}>
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Competitor</th>
+                  <th style={{ textAlign: "center" }}>Schools</th>
+                  <th style={{ textAlign: "center" }}>Converted</th>
+                  <th style={{ textAlign: "center" }}>Conv. Rate</th>
+                  <th style={{ textAlign: "right" }}>Revenue Won</th>
+                  <th>Top Cities</th>
+                </tr>
+              </thead>
+              <tbody>
+                {compData.competitors.map((c: any) => (
+                  <tr key={c.competitor}>
+                    <td style={{ fontWeight: 600 }}>{c.competitor}</td>
+                    <td style={{ textAlign: "center" }}>{c.schoolCount}</td>
+                    <td style={{ textAlign: "center", color: "var(--green)", fontWeight: 600 }}>{c.convertedCount}</td>
+                    <td style={{ textAlign: "center" }}>
+                      <span className={`badge ${c.conversionRate >= 50 ? "badge-green" : c.conversionRate >= 25 ? "badge-yellow" : "badge-red"}`} style={{ fontSize: 11 }}>
+                        {c.conversionRate}%
+                      </span>
+                    </td>
+                    <td style={{ fontFamily: "monospace", textAlign: "right", fontWeight: 600 }}>
+                      {c.revenueWon > 0 ? `₹${c.revenueWon.toLocaleString()}` : "—"}
+                    </td>
+                    <td style={{ fontSize: 12, color: "var(--text-muted)" }}>{c.cities.slice(0, 3).join(", ")}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* City concentration heat */}
+          {compData.topCities?.length > 0 && (
+            <div style={{ paddingTop: 16, borderTop: "1px solid var(--border)" }}>
+              <h3 style={{ fontSize: 13, marginBottom: 12 }}>City × Competitor Concentration</h3>
+              <div className="table-wrap">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>City</th>
+                      {compData.topCompetitorNames.map((n: string) => <th key={n} style={{ textAlign: "center" }}>{n}</th>)}
+                      <th style={{ textAlign: "center" }}>Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {compData.topCities.map((city: any) => (
+                      <tr key={city.city}>
+                        <td style={{ fontWeight: 500 }}>{city.city}</td>
+                        {compData.topCompetitorNames.map((n: string) => (
+                          <td key={n} style={{ textAlign: "center", color: city[n] ? "var(--accent)" : "var(--text-muted)" }}>
+                            {city[n] ?? "—"}
+                          </td>
+                        ))}
+                        <td style={{ textAlign: "center", fontWeight: 700 }}>{city.total}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

@@ -40,14 +40,14 @@ export default function TargetsPage() {
     setLoading(true);
     const proms: Promise<any>[] = [
       fetch(`/api/targets?month=${month}&year=${year}`, { credentials: "include" }).then((r) => r.json()),
-      fetch("/api/orders/list", { credentials: "include" }).then((r) => r.json()),
+      fetch("/api/orders/list?limit=200", { credentials: "include" }).then((r) => r.json()),
     ];
     if (isManager) {
       proms.push(fetch("/api/bd/team", { credentials: "include" }).then((r) => r.json()));
     }
     const results = await Promise.all(proms);
     setTargets(Array.isArray(results[0]) ? results[0] : []);
-    setOrders(Array.isArray(results[1]) ? results[1] : []);
+    setOrders(Array.isArray(results[1]) ? results[1] : (results[1]?.orders ?? []));
     if (isManager && results[2]) setTeam(Array.isArray(results[2]) ? results[2] : []);
     setLoading(false);
   };
@@ -117,7 +117,7 @@ export default function TargetsPage() {
         )}
 
         {loading ? (
-          <p style={{ color: "var(--text-muted)" }}>Loading…</p>
+          <div style={{ color: "var(--text-muted)", padding: "40px 0", textAlign: "center" }}>Loading...</div>
         ) : (
           <div className="card" style={{ padding: 0, overflow: "hidden" }}>
             <table className="data-table">
@@ -219,7 +219,7 @@ export default function TargetsPage() {
       </div>
 
       {loading ? (
-        <p style={{ color: "var(--text-muted)" }}>Loading…</p>
+        <div style={{ color: "var(--text-muted)", padding: "40px 0", textAlign: "center" }}>Loading...</div>
       ) : myTarget ? (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
           {/* Revenue */}
